@@ -4,10 +4,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
+
+
 const Welcome = () => {
   const [isReady, setIsReady] = useState(false);
   const navigation = useNavigation();
-
+  
   useEffect(() => {
     const checkFirstLaunch = async () => {
       try {

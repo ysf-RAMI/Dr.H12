@@ -17,6 +17,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import NotificationService from '../../services/NotificationService';
 
 const AnnouncementScreen = () => {
   // State management
@@ -302,7 +303,11 @@ const AddAnnouncementDialog = ({
         }
       );
   
-      Alert.alert('Success', 'Announcement added successfully');
+      Alert.alert('Success', 'Announcement added successfully and notification sent');
+      await NotificationService.sendAnnouncementNotification({
+        title: title,
+        body: description,
+      });
       onSuccess();
       handleClose();
     } catch (error) {

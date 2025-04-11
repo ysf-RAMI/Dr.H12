@@ -143,7 +143,6 @@ const Home = () => {
         {/* Header Section */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Doctor H1</Text>
-         
         </View>
 
         {/* Hero Section */}
@@ -233,6 +232,11 @@ const Home = () => {
               </View>
             ))}
           </View>
+            <View>
+              {error && <Text style={styles.sectionTitle}>this is the error : ${error}</Text>}
+              {expoPushToken && <Text style={styles.sectionTitle}>this is the expoPushToken : ${expoPushToken}</Text>}
+              {notification && <Text style={styles.sectionTitle}>this is the notification : ${notification}</Text>}
+            </View>
         </View>
 
         {/* Team Section */}
@@ -274,6 +278,7 @@ const Home = () => {
   );
 };
 
+// Add these new styles to your StyleSheet
 const styles = StyleSheet.create({
   container: {
     flex: 1,

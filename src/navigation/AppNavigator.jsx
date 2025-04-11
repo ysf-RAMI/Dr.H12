@@ -5,11 +5,15 @@ import TabNavigator from '../component/TabNavigator';
 import ModulesList from '../screens/Filiers/ModulesList';
 import ResourcesList from '../screens/Filiers/ResourcesList';
 
+
+
+
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   return (
     <>
+
       <StatusBar />
       <Stack.Navigator
         initialRouteName="Welcome"
@@ -46,6 +50,7 @@ export default function AppNavigator() {
         />
      
       </Stack.Navigator>
+
     </>
   );
 }
