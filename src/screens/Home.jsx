@@ -110,18 +110,13 @@ const Home = () => {
     },
   ];
 
+  // Remove the notification section from the Why Choose Us section
   const advantages = [
     {
       id: 1,
       icon: "school",
       title: "Filières Diversifiées",
       description: "Une large sélection de filières adaptées aux besoins des étudiants"
-    },
-    {
-      id: 2,
-      icon: "notifications",
-      title: "Annonces Importantes",
-      description: "Restez informé des dernières annonces et mises à jour concernant votre formation"
     },
     {
       id: 3,
@@ -232,11 +227,6 @@ const Home = () => {
               </View>
             ))}
           </View>
-            <View>
-              {error && <Text style={styles.sectionTitle}>this is the error : ${error}</Text>}
-              {expoPushToken && <Text style={styles.sectionTitle}>this is the expoPushToken : ${expoPushToken}</Text>}
-              {notification && <Text style={styles.sectionTitle}>this is the notification : ${notification}</Text>}
-            </View>
         </View>
 
         {/* Team Section */}

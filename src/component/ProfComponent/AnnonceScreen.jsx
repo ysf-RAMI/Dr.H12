@@ -17,7 +17,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import NotificationService from '../../services/NotificationService';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const AnnouncementScreen = () => {
   // State management
@@ -134,51 +134,21 @@ const AnnouncementScreen = () => {
   }
 
   return (
-    <PaperProvider>
-      
-      <ScrollView 
-        style={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#01162e"]}
-            tintColor="#01162e"
-          />
-        }
-      >
-        {/* Header with Add Button */}
-        <View style={styles.headerContainer}>
-          <AddAnnouncementDialog 
-            token={token}
-            profId={profId}
-            baseUrl={baseUrl}
-            onSuccess={fetchAnnouncements}
-            titleRef={titleRef}
-            descriptionRef={descriptionRef}
-          />
-        </View>
-
-        {/* Announcement Grid */}
-        {announcements.length > 0 ? (
-          <View style={styles.gridContainer}>
-            {displayedAnnouncements.map((announcement) => (
-              <AnnouncementCard 
-                key={announcement.id}
-                announcement={announcement}
-                baseUrl={baseUrl}
-                defaultImage={defaultImage}
-                token={token}
-                onDeleteSuccess={fetchAnnouncements}
-                titleRef={titleRef}
-                descriptionRef={descriptionRef}
-              />
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="bullhorn" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No announcements found</Text>
+    <SafeAreaView style={{ flex: 1 }}>
+      <PaperProvider>
+        <ScrollView 
+          style={styles.container}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#01162e"]}
+              tintColor="#01162e"
+            />
+          }
+        >
+          {/* Header with Add Button */}
+          <View style={styles.headerContainer}>
             <AddAnnouncementDialog 
               token={token}
               profId={profId}
@@ -186,32 +156,63 @@ const AnnouncementScreen = () => {
               onSuccess={fetchAnnouncements}
               titleRef={titleRef}
               descriptionRef={descriptionRef}
-              triggerStyle={styles.emptyButton}
-              triggerText="Create your first announcement"
             />
           </View>
-        )}
 
-        {/* Pagination Controls */}
-        {announcements.length > itemsPerPage && (
-          <View style={styles.paginationContainer}>
-            <Button 
-              disabled={page === 1}
-              onPress={() => handlePageChange(page - 1)}
-            >
-              Previous
-            </Button>
-            <Text style={styles.pageText}>Page {page}</Text>
-            <Button 
-              disabled={endIndex >= announcements.length}
-              onPress={() => handlePageChange(page + 1)}
-            >
-              Next
-            </Button>
-          </View>
-        )}
-      </ScrollView>
-    </PaperProvider>
+          {/* Announcement Grid */}
+          {announcements.length > 0 ? (
+            <View style={styles.gridContainer}>
+              {displayedAnnouncements.map((announcement) => (
+                <AnnouncementCard 
+                  key={announcement.id}
+                  announcement={announcement}
+                  baseUrl={baseUrl}
+                  defaultImage={defaultImage}
+                  token={token}
+                  onDeleteSuccess={fetchAnnouncements}
+                  titleRef={titleRef}
+                  descriptionRef={descriptionRef}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="bullhorn" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No announcements found</Text>
+              <AddAnnouncementDialog 
+                token={token}
+                profId={profId}
+                baseUrl={baseUrl}
+                onSuccess={fetchAnnouncements}
+                titleRef={titleRef}
+                descriptionRef={descriptionRef}
+                triggerStyle={styles.emptyButton}
+                triggerText="Create your first announcement"
+              />
+            </View>
+          )}
+
+          {/* Pagination Controls */}
+          {announcements.length > itemsPerPage && (
+            <View style={styles.paginationContainer}>
+              <Button 
+                disabled={page === 1}
+                onPress={() => handlePageChange(page - 1)}
+              >
+                Previous
+              </Button>
+              <Text style={styles.pageText}>Page {page}</Text>
+              <Button 
+                disabled={endIndex >= announcements.length}
+                onPress={() => handlePageChange(page + 1)}
+              >
+                Next
+              </Button>
+            </View>
+          )}
+        </ScrollView>
+      </PaperProvider>
+    </SafeAreaView>
   );
 };
 
@@ -264,8 +265,6 @@ const AddAnnouncementDialog = ({
     return true;
   };
 
-  // Remove the useEffect for notification setup
-  
   const handleSave = async () => {
     if (!validateForm() || isUploading || !token || !profId) return;
   
@@ -286,6 +285,7 @@ const AddAnnouncementDialog = ({
         });
       }
   
+      // Save announcement
       const response = await axios.post(
         `${baseUrl}/api/professeur/addAnnonce`, 
         formData,
@@ -303,11 +303,31 @@ const AddAnnouncementDialog = ({
         }
       );
   
-      Alert.alert('Success', 'Announcement added successfully and notification sent');
-      await NotificationService.sendAnnouncementNotification({
-        title: title,
-        body: description,
-      });
+      // Get all tokens
+      const tokensResponse = await axios.get(`${baseUrl}/api/student/getTokens`);
+      const tokens = tokensResponse.data;
+  
+      // Send notification to each token
+      await Promise.all(tokens.map(token => 
+        fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            to: token,
+            title: title,
+            body: `New announcement from Professor ${profId}`,
+            data: { 
+              profId,
+              announcementId: response.data.id
+            },
+          })
+        })
+      ));
+  
+      Alert.alert('Success', 'Announcement added and notifications sent');
       onSuccess();
       handleClose();
     } catch (error) {
