@@ -4,36 +4,55 @@ import {
   StyleSheet, 
   ActivityIndicator, 
   Text,
-  Platform,
   StatusBar,
   TouchableOpacity,
-  Linking
+  Linking,
+  Button
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { IconButton } from 'react-native-paper';
 
-const MediaViewer = ({ uri, type = 'PDF', onClose }) => {
+// Modified component with built-in test functionality
+const MediaViewer = ({ uri, type = 'PDF', onClose, testMode = false }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   
+  // For test mode
+  const [showViewer, setShowViewer] = useState(false);
+  const [testUri, setTestUri] = useState('');
+  const [testType, setTestType] = useState('PDF');
+  
   useEffect(() => {
     StatusBar.setHidden(true);
-    console.log('MediaViewer URI:', uri);
-    console.log('MediaViewer Type:', type);
+    console.log('MediaViewer URI:', testMode ? testUri : uri);
+    console.log('MediaViewer Type:', testMode ? testType : type);
     return () => StatusBar.setHidden(false);
-  }, [uri, type]);
+  }, [uri, type, testUri, testType]);
 
   const getWebViewSource = () => {
     const BASE_URL = 'https://doctorh1-kjmev.ondigitalocean.app';
     
-    if (type === 'VIDEO') {
+    // Use test values if in test mode
+    const currentUri = testMode ? testUri : uri;
+    const currentType = testMode ? testType : type;
+    
+    if (currentType === 'VIDEO') {
       // For videos, use the URI directly (full YouTube URL)
-      return { uri };
+      return { uri: currentUri };
     }
     
-    // For both PDF and FICHIER types, add the BASE_URL
+    // For PDF files, we need to use a PDF viewer
+    if (currentType === 'PDF') {
+      const pdfUrl = `${BASE_URL}/api/files/getFile/${currentUri}`;
+      // Use Google PDF Viewer to display the PDF
+      return { 
+        uri: `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true` 
+      };
+    }
+    
+    // For other file types (FICHIER), add the BASE_URL
     return { 
-      uri: `${BASE_URL}/api/files/getFile/${uri}`
+      uri: `${BASE_URL}/api/files/getFile/${currentUri}`
     };
   };
 
@@ -72,7 +91,7 @@ const MediaViewer = ({ uri, type = 'PDF', onClose }) => {
         originWhitelist={['*']}
         androidLayerType="hardware"
         cacheEnabled={true}
-        incognito={Platform.OS === 'android'}
+        incognito={true}
         startInLoadingState={true}
         scalesPageToFit={true}
         allowsInlineMediaPlayback={true}
@@ -81,20 +100,47 @@ const MediaViewer = ({ uri, type = 'PDF', onClose }) => {
     );
   };
 
+  // Test functions
+  const testPDF = () => {
+    setTestType('PDF');
+    setTestUri('sample-pdf-id'); // Replace with actual PDF ID
+    setShowViewer(true);
+  };
+
+  const testVideo = () => {
+    setTestType('VIDEO');
+    setTestUri('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    setShowViewer(true);
+  };
+
+  // If in test mode and not showing viewer, show test buttons
+  if (testMode && !showViewer) {
+    return (
+      <View style={styles.testContainer}>
+        <Text style={styles.testTitle}>MediaViewer Test</Text>
+        <Button title="Test PDF Viewer" onPress={testPDF} />
+        <Button title="Test Video Viewer" onPress={testVideo} />
+      </View>
+    );
+  }
+
+  // If in test mode and showing viewer, use test values
+  const currentOnClose = testMode ? () => setShowViewer(false) : onClose;
+
   return (
     <View style={styles.container}>
       <View style={styles.headerControls}>
         <IconButton 
           icon="close" 
           size={24} 
-          onPress={onClose} 
+          onPress={currentOnClose} 
           color="#fff"
         />
-        {type === 'VIDEO' ? (
+        {(testMode ? testType : type) === 'VIDEO' ? (
           <IconButton 
             icon="open-in-new" 
             size={24} 
-            onPress={() => Linking.openURL(uri)} 
+            onPress={() => Linking.openURL(testMode ? testUri : uri)} 
             color="#fff"
             style={styles.externalLinkButton}
           />
@@ -104,7 +150,7 @@ const MediaViewer = ({ uri, type = 'PDF', onClose }) => {
             size={24} 
             onPress={() => {
               const BASE_URL = 'https://doctorh1-kjmev.ondigitalocean.app';
-              Linking.openURL(`${BASE_URL}/api/files/getFile/${uri}`);
+              Linking.openURL(`${BASE_URL}/api/files/getFile/${testMode ? testUri : uri}`);
             }} 
             color="#fff"
             style={styles.externalLinkButton}
@@ -133,7 +179,7 @@ const styles = StyleSheet.create({
   },
   headerControls: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 40 : 20,
+    top: 20,
     right: 10,
     zIndex: 10,
     flexDirection: 'row',
@@ -178,7 +224,7 @@ const styles = StyleSheet.create({
   },
   webviewContainer: {
     flex: 1,
-    marginTop: Platform.OS === 'ios' ? 40 : 0,
+    marginTop: 0,
   }
 });
 
