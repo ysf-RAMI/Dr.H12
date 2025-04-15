@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -9,8 +9,6 @@ import {
 } from 'react-native';
 import {
   Card,
-  Title,
-  Paragraph,
   Avatar,
   DataTable,
   ProgressBar,
@@ -18,13 +16,11 @@ import {
   useTheme,
   Text,
 } from 'react-native-paper';
-import { PieChart } from 'react-native-chart-kit';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   MaterialCommunityIcons,
   MaterialIcons,
-  FontAwesome5,
   Feather,
   Ionicons,
 } from '@expo/vector-icons';
@@ -52,8 +48,75 @@ const DashboardScreen = () => {
     nbrVideo: 0,
   };
 
+  // Memoized data processing
+  const processData = useCallback((data) => {
+    return {
+      ...data,
+      resourcesPieData: [
+        {
+          name: 'Cours',
+          count: data?.nbrCours || 0,
+          color: '#4CAF50',
+        },
+        {
+          name: 'TD',
+          count: data?.nbrTd || 0,
+          color: '#2196F3',
+        },
+        {
+          name: 'TP',
+          count: data?.nbrTp || 0,
+          color: '#FF9800',
+        },
+        {
+          name: 'Examens',
+          count: data?.nbrExam || 0,
+          color: '#F44336',
+        },
+      ].filter(item => item.count > 0),
+      filesPieData: [
+        {
+          name: 'Fichiers',
+          count: data?.nbrFichier || 0,
+          color: '#9C27B0',
+        },
+        {
+          name: 'Vidéos',
+          count: data?.nbrVideo || 0,
+          color: '#009688',
+        },
+      ].filter(item => item.count > 0),
+      statsCards: [
+        {
+          title: 'Modules',
+          value: data?.nbrModule || 0,
+          icon: 'book',
+          color: '#003366',
+        },
+        {
+          title: 'Ressources',
+          value: data?.nbrResources || 0,
+          icon: 'file-document',
+          color: '#01162e',
+        },
+        {
+          title: 'Cours',
+          value: data?.nbrCours || 0,
+          icon: 'school',
+          color: '#003366',
+        },
+        {
+          title: 'Annonces',
+          value: data?.nbrAnnonce || 0,
+          icon: 'bullhorn',
+          color: '#01162e',
+        },
+      ]
+    };
+  }, []);
+
   // Load dashboard data
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -69,106 +132,29 @@ const DashboardScreen = () => {
         }
       );
 
-      setDashboardData(response.data);
+      setDashboardData(processData(response.data));
     } catch (err) {
       console.error('Dashboard load error:', err);
       setError('Failed to load dashboard data');
-      setDashboardData(FALLBACK_DATA);
+      setDashboardData(processData(FALLBACK_DATA));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [processData]);
 
   // Handle refresh
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
-  };
+  }, [loadData]);
 
   // Initial load
   useEffect(() => {
     if (isFocused) {
       loadData();
     }
-  }, [isFocused]);
-
-  // Memoized chart data
-  const resourcesPieData = [
-    {
-      name: 'Cours',
-      count: dashboardData?.nbrCours || 0,
-      color: '#4CAF50',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-    {
-      name: 'TD',
-      count: dashboardData?.nbrTd || 0,
-      color: '#2196F3',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-    {
-      name: 'TP',
-      count: dashboardData?.nbrTp || 0,
-      color: '#FF9800',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-    {
-      name: 'Examens',
-      count: dashboardData?.nbrExam || 0,
-      color: '#F44336',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-  ].filter(item => item.count > 0);
-
-  const filesPieData = [
-    {
-      name: 'Fichiers',
-      count: dashboardData?.nbrFichier || 0,
-      color: '#9C27B0',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-    {
-      name: 'Vidéos',
-      count: dashboardData?.nbrVideo || 0,
-      color: '#009688',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-  ].filter(item => item.count > 0);
-
-  // Stats cards data
-  const statsCards = [
-    {
-      title: 'Modules',
-      value: dashboardData?.nbrModule || 0,
-      icon: 'book',
-      color: '#003366',
-    },
-    {
-      title: 'Ressources',
-      value: dashboardData?.nbrResources || 0,
-      icon: 'file-document',
-      color: '#01162e',
-    },
-    {
-      title: 'Cours',
-      value: dashboardData?.nbrCours || 0,
-      icon: 'school',
-      color: '#003366',
-    },
-    {
-      title: 'Annonces',
-      value: dashboardData?.nbrAnnonce || 0,
-      icon: 'bullhorn',
-      color: '#01162e',
-    },
-  ];
+  }, [isFocused, loadData]);
 
   // Loading state
   if (loading && !dashboardData) {
@@ -201,6 +187,65 @@ const DashboardScreen = () => {
     );
   }
 
+  // Helper component for progress bars
+  const ProgressChart = ({ data, title, icon }) => {
+    const maxValue = Math.max(...data.map(item => item.count), 1);
+    
+    return (
+      <Card style={styles.chartCard}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons
+              name={icon}
+              size={24}
+              color={theme.colors.primary}
+            />
+            <Text style={styles.sectionTitle}>{title}</Text>
+          </View>
+
+          {data.map((item, index) => (
+            <View key={index} style={styles.statBar}>
+              <View style={styles.statBarHeader}>
+                <Text style={styles.statLabel}>{item.name}</Text>
+                <Text style={styles.statValue}>{item.count}</Text>
+              </View>
+              <ProgressBar
+                progress={item.count / maxValue}
+                color={item.color}
+                style={styles.progressBar}
+              />
+            </View>
+          ))}
+        </Card.Content>
+      </Card>
+    );
+  };
+
+  // Stats card component
+  const StatCard = ({ title, value, icon, color }) => (
+    <Card style={[styles.statCard, { backgroundColor: color }]}>
+      <Card.Content style={styles.statCardContent}>
+        <Avatar.Icon
+          icon={icon}
+          size={40}
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+        />
+        <View style={styles.statTextContainer}>
+          <Text style={styles.statTitle}>{title}</Text>
+          <Text style={styles.statValue}>{value}</Text>
+        </View>
+      </Card.Content>
+    </Card>
+  );
+
+  // Resource item component
+  const ResourceItem = ({ icon, value, label, iconColor }) => (
+    <View style={styles.resourceItem}>
+      {React.createElement(icon, { size: 24, color: iconColor })}
+      <Text style={styles.resourceText}>{label}: {value}</Text>
+    </View>
+  );
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -231,27 +276,28 @@ const DashboardScreen = () => {
       </Card>
 
       {/* Stats Cards */}
+      <View style={{flex : 1,flexDirection:"row",justifyContent:'center',alignItems:'center'}}>
+      <MaterialCommunityIcons
+          name="chevron-left"
+          size={24}
+          color="black"
+        />
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.statsContainer}
       >
-        {statsCards.map((stat, index) => (
-          <Card key={index} style={[styles.statCard, { backgroundColor: stat.color }]}>
-            <Card.Content style={styles.statCardContent}>
-              <Avatar.Icon
-                icon={stat.icon}
-                size={40}
-                style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
-              />
-              <View style={styles.statTextContainer}>
-                <Text style={styles.statTitle}>{stat.title}</Text>
-                <Text style={styles.statValue}>{stat.value}</Text>
-              </View>
-            </Card.Content>
-          </Card>
+        {dashboardData.statsCards.map((stat, index) => (
+          <StatCard key={index} {...stat} />
         ))}
-      </ScrollView>
+      </ScrollView> 
+       <MaterialCommunityIcons
+          name="chevron-right"
+          size={24}
+          color="black"
+        />
+      </View>
 
       {/* Resources Overview */}
       <Card style={styles.sectionCard}>
@@ -268,7 +314,7 @@ const DashboardScreen = () => {
           <View style={styles.resourceSummary}>
             <View style={styles.resourceTotal}>
               <Text style={styles.totalText}>
-                Total: {dashboardData?.nbrResources || 0}
+                Total: {dashboardData.nbrResources || 0}
               </Text>
               <View style={styles.chipContainer}>
                 <Chip
@@ -276,35 +322,47 @@ const DashboardScreen = () => {
                   style={[styles.chip, { backgroundColor: '#01162e' }]}
                   textStyle={styles.chipText}
                 >
-                  Fichiers: {dashboardData?.nbrFichier || 0}
+                  Fichiers: {dashboardData.nbrFichier || 0}
                 </Chip>
                 <Chip
                   icon="video"
                   style={[styles.chip, { backgroundColor: '#4080be' }]}
                   textStyle={styles.chipText}
                 >
-                  Vidéos: {dashboardData?.nbrVideo || 0}
+                  Vidéos: {dashboardData.nbrVideo || 0}
                 </Chip>
               </View>
             </View>
 
             <View style={styles.resourceGrid}>
-              <View style={styles.resourceItem}>
-                <MaterialCommunityIcons name="book" size={24} color="#4CAF50" />
-                <Text style={styles.resourceText}>Cours: {dashboardData?.nbrCours || 0}</Text>
-              </View>
-              <View style={styles.resourceItem}>
-                <Feather name="file-text" size={24} color="#2196F3" />
-                <Text style={styles.resourceText}>TD: {dashboardData?.nbrTd || 0}</Text>
-              </View>
-              <View style={styles.resourceItem}>
-                <Ionicons name="flask" size={24} color="#FF9800" />
-                <Text style={styles.resourceText}>TP: {dashboardData?.nbrTp || 0}</Text>
-              </View>
-              <View style={styles.resourceItem}>
-                <MaterialIcons name="assignment" size={24} color="#F44336" />
-                <Text style={styles.resourceText}>Examens: {dashboardData?.nbrExam || 0}</Text>
-              </View>
+              <ResourceItem 
+                icon={MaterialCommunityIcons} 
+                name="book" 
+                value={dashboardData.nbrCours} 
+                label="Cours" 
+                iconColor="#4CAF50" 
+              />
+              <ResourceItem 
+                icon={Feather} 
+                name="file-text" 
+                value={dashboardData.nbrTd} 
+                label="TD" 
+                iconColor="#2196F3" 
+              />
+              <ResourceItem 
+                icon={Ionicons} 
+                name="flask" 
+                value={dashboardData.nbrTp} 
+                label="TP" 
+                iconColor="#FF9800" 
+              />
+              <ResourceItem 
+                icon={MaterialIcons} 
+                name="assignment" 
+                value={dashboardData.nbrExam} 
+                label="Examens" 
+                iconColor="#F44336" 
+              />
             </View>
           </View>
         </Card.Content>
@@ -312,85 +370,16 @@ const DashboardScreen = () => {
 
       {/* Charts Section */}
       <View style={styles.chartsContainer}>
-        {/* Resource Distribution Chart */}
-        <Card style={styles.chartCard}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons
-                name="chart-pie"
-                size={24}
-                color={theme.colors.primary}
-              />
-              <Text style={styles.sectionTitle}>Contenu Éducatif</Text>
-            </View>
-
-            {resourcesPieData.length > 0 ? (
-              <PieChart
-                data={resourcesPieData}
-                width={Dimensions.get('window').width - 40}
-                height={200}
-                chartConfig={{
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                }}
-                accessor="count"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
-              />
-            ) : (
-              <View style={styles.noDataContainer}>
-                <MaterialCommunityIcons
-                  name="chart-line"
-                  size={40}
-                  color={theme.colors.textSecondary}
-                />
-                <Text style={styles.noDataText}>
-                  Aucune donnée de contenu éducatif disponible
-                </Text>
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-
-        {/* File Type Chart */}
-        <Card style={styles.chartCard}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons
-                name="file-chart"
-                size={24}
-                color={theme.colors.primary}
-              />
-              <Text style={styles.sectionTitle}>Types de Fichiers</Text>
-            </View>
-
-            {filesPieData.length > 0 ? (
-              <PieChart
-                data={filesPieData}
-                width={Dimensions.get('window').width - 40}
-                height={200}
-                chartConfig={{
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                }}
-                accessor="count"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
-              />
-            ) : (
-              <View style={styles.noDataContainer}>
-                <MaterialCommunityIcons
-                  name="chart-bar"
-                  size={40}
-                  color={theme.colors.textSecondary}
-                />
-                <Text style={styles.noDataText}>
-                  Aucune donnée de type de fichier disponible
-                </Text>
-              </View>
-            )}
-          </Card.Content>
-        </Card>
+        <ProgressChart 
+          data={dashboardData.resourcesPieData} 
+          title="Contenu Éducatif" 
+          icon="chart-pie" 
+        />
+        <ProgressChart 
+          data={dashboardData.filesPieData} 
+          title="Types de Fichiers" 
+          icon="file-chart" 
+        />
       </View>
 
       {/* Detailed Stats */}
@@ -413,25 +402,22 @@ const DashboardScreen = () => {
 
             <DataTable.Row>
               <DataTable.Cell>Modules</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData?.nbrModule || 0}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData.nbrModule}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>Cours</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData?.nbrCours || 0}</DataTable.Cell>
-             
+              <DataTable.Cell numeric>{dashboardData.nbrCours}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>TD</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData?.nbrTd || 0}</DataTable.Cell>
-             
+              <DataTable.Cell numeric>{dashboardData.nbrTd}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>TP</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData?.nbrTp || 0}</DataTable.Cell>
-              
+              <DataTable.Cell numeric>{dashboardData.nbrTp}</DataTable.Cell>
             </DataTable.Row>
           </DataTable>
         </Card.Content>
@@ -444,8 +430,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
   },
   loaderContainer: {
     flex: 1,
@@ -581,17 +565,25 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderRadius: 12,
   },
-  noDataContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+  statBar: {
+    marginBottom: 12,
   },
-  noDataText: {
-    marginTop: 10,
-    color: '#666',
-    textAlign: 'center',
+  statBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
   },
 });
 
 export default DashboardScreen;
-

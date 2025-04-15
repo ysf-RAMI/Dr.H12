@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   ScrollView, 
@@ -9,14 +9,11 @@ import {
 } from 'react-native';
 import {
   Card,
-  Title,
-  Paragraph,
   Avatar,
-  IconButton,
-  Colors,
   DataTable,
-  ProgressBar,
-  Chip
+  Chip,
+  useTheme,
+  ProgressBar
 } from 'react-native-paper';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,9 +24,6 @@ import {
   Feather,
   Ionicons
 } from '@expo/vector-icons';
-import { useTheme } from 'react-native-paper';
-import { PieChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
 
 const AdminRDashboard = () => {
   const theme = useTheme();
@@ -38,8 +32,23 @@ const AdminRDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const API_URL = 'https://doctorh1-kjmev.ondigitalocean.app/api/admin';
 
+  // Fallback data
+  const FALLBACK_DATA = {
+    nbrProfesseur: 0,
+    nbrFiliere: 0,
+    nbrModule: 0,
+    nbrAnnonce: 0,
+    nbrResources: 0,
+    nbrTd: 0,
+    nbrTp: 0,
+    nbrCours: 0,
+    nbrExam: 0,
+    nbrFichier: 0,
+    nbrVideo: 0,
+  };
+
   // Load dashboard data
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const authData = await AsyncStorage.getItem('auth');
@@ -51,39 +60,26 @@ const AdminRDashboard = () => {
       
       setDashboardData(response.data);
     } catch (error) {
-      // Fallback data if API fails
-      setDashboardData({
-        nbrProfesseur: 0,
-        nbrFiliere: 0,
-        nbrModule: 0,
-        nbrAnnonce: 0,
-        nbrResources: 0,
-        nbrTd: 0,
-        nbrTp: 0,
-        nbrCours: 0,
-        nbrExam: 0,
-        nbrFichier: 0,
-        nbrVideo: 0,
-      });
+      console.error('Dashboard load error:', error);
+      setDashboardData(FALLBACK_DATA);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   // Handle refresh
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
-  };
+  }, [loadData]);
 
   // Initial load
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Loading state
-  // Update loading state to use French
   if (loading && !dashboardData) {
     return (
       <View style={styles.loaderContainer}>
@@ -93,88 +89,144 @@ const AdminRDashboard = () => {
     );
   }
 
-  // Chart data
-  // Update chart data labels to French
-  const resourceChartData = [
-    {
-      name: "Cours",
-      count: dashboardData.nbrCours,
-      color: "#4CAF50",
-      legendFontColor: "#7F7F7F",
-      legendFontSize: 15
-    },
-    {
-      name: "TD",
-      count: dashboardData.nbrTd,
-      color: "#2196F3",
-      legendFontColor: "#7F7F7F",
-      legendFontSize: 15
-    },
-    {
-      name: "TP",
-      count: dashboardData.nbrTp,
-      color: "#FF9800",
-      legendFontColor: "#7F7F7F",
-      legendFontSize: 15
-    },
-    {
-      name: "Examens",
-      count: dashboardData.nbrExam,
-      color: "#F44336",
-      legendFontColor: "#7F7F7F",
-      legendFontSize: 15
-    }
-  ];
-
-  const fileTypeChartData = [
-    {
-      name: "Fichiers",
-      count: dashboardData.nbrFichier,
-      color: "#9C27B0",
-      legendFontColor: "#7F7F7F",
-      legendFontSize: 15
-    },
-    {
-      name: "Vidéos",
-      count: dashboardData.nbrVideo,
-      color: "#009688",
-      legendFontColor: "#7F7F7F",
-      legendFontSize: 15
-    }
-  ];
-
-  // Update stats cards data to French
+  // Stats cards data
   const statsCards = [
     {
       title: "Professeurs",
-      value: dashboardData.nbrProfesseur,
-      icon: <MaterialIcons name="people" size={24} color="white" />,
+      value: dashboardData?.nbrProfesseur || 0,
+      icon: 'account-group',
       color: '#003366'
     },
     {
       title: "Filières",
-      value: dashboardData.nbrFiliere,
-      icon: <MaterialIcons name="category" size={24} color="white" />,
+      value: dashboardData?.nbrFiliere || 0,
+      icon: 'bookmark-multiple',
       color: '#01162e'
     },
     {
       title: "Modules",
-      value: dashboardData.nbrModule,
-      icon: <MaterialIcons name="menu-book" size={24} color="white" />,
+      value: dashboardData?.nbrModule || 0,
+      icon: 'book-open-variant',
       color: '#003366'
     },
     {
       title: "Annonces",
-      value: dashboardData.nbrAnnonce,
-      icon: <MaterialIcons name="announcement" size={24} color="white" />,
+      value: dashboardData?.nbrAnnonce || 0,
+      icon: 'bullhorn',
       color: '#01162e'
-      
     }
   ];
 
+  // Resource items data
+  const resourceItems = [
+    {
+      icon: 'book',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrCours || 0,
+      label: "Cours",
+      color: "#4CAF50"
+    },
+    {
+      icon: 'file-document',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrTd || 0,
+      label: "TD",
+      color: "#2196F3"
+    },
+    {
+      icon: 'flask',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrTp || 0,
+      label: "TP",
+      color: "#FF9800"
+    },
+    {
+      icon: 'file-chart',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrExam || 0,
+      label: "Examens",
+      color: "#F44336"
+    }
+  ];
+
+  // File type items
+  const fileTypeItems = [
+    {
+      icon: 'file',
+      value: dashboardData?.nbrFichier || 0,
+      label: "Fichiers",
+      color: "#9C27B0"
+    },
+    {
+      icon: 'video',
+      value: dashboardData?.nbrVideo || 0,
+      label: "Vidéos",
+      color: "#009688"
+    }
+  ];
+
+  // Reusable components
+  const StatCard = ({ title, value, icon, color }) => (
+    <Card style={[styles.statCard, { backgroundColor: color }]}>
+      <Card.Content style={styles.statCardContent}>
+        <Avatar.Icon 
+          icon={icon}
+          size={40}
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.65)' }}
+        />
+        <View style={styles.statTextContainer}>
+          <Text style={styles.statTitle}>{title}</Text>
+          <Text style={styles.statValue}>{value}</Text>
+        </View>
+      </Card.Content>
+    </Card>
+  );
+
+  const ResourceItem = ({ icon, iconComponent: IconComponent, value, label, color }) => (
+    <View style={styles.resourceItem}>
+      
+      <IconComponent name={icon} size={20} color={color} />
+      <Text style={styles.resourceText}>{label}: {value}</Text>
+    </View>
+  );
+
+  const ProgressChart = ({ title, icon, items }) => (
+    <Card style={styles.chartCard}>
+      <Card.Content>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={24} 
+            color="#01162e" 
+          />
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        
+        {items.map((item, index) => (
+          <View key={index} style={styles.progressItem}>
+            <View style={styles.progressHeader}>
+              <MaterialCommunityIcons 
+                name={item.icon} 
+                size={20} 
+                color={item.color} 
+              />
+              <Text style={styles.progressLabel}>{item.label}</Text>
+              <Text style={styles.progressValue}>{item.value}</Text>
+            </View>
+            <ProgressBar 
+              progress={item.value / Math.max(...items.map(i => i.value), 1)}
+              color={item.color}
+              style={styles.progressBar}
+            />
+          </View>
+        ))}
+      </Card.Content>
+    </Card>
+  );
+
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: '#f8f9fa' }]}
+      style={styles.container}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -183,6 +235,14 @@ const AdminRDashboard = () => {
         />
       }
     >
+      <View style={{flex : 1,flexDirection:"row",justifyContent:'center',alignItems:'center'}}> 
+        
+     
+      <MaterialCommunityIcons
+          name="chevron-left"
+          size={24}
+          color="black"
+        />
       {/* Stats Cards */}
       <ScrollView 
         horizontal 
@@ -190,24 +250,18 @@ const AdminRDashboard = () => {
         style={styles.statsContainer}
       >
         {statsCards.map((stat, index) => (
-          <Card key={index} style={[styles.statCard, { backgroundColor: stat.color, borderRadius: 16 }]}>
-            <Card.Content style={styles.statCardContent}>
-              <Avatar.Icon 
-                icon={() => stat.icon}
-                size={40}
-                style={{ backgroundColor: 'rgba(255, 255, 255, 0.65)' }}
-              />
-              <View style={styles.statTextContainer}>
-                <Text style={styles.statTitle}>{stat.title}</Text>
-                <Text style={styles.statValue}>{stat.value}</Text>
-              </View>
-            </Card.Content>
-          </Card>
+          <StatCard key={index} {...stat} />
         ))}
       </ScrollView>
+      <MaterialCommunityIcons
+          name="chevron-right"
+          size={24}
+          color="black"
+        />
+          </View>
 
       {/* Resources Summary */}
-      <Card style={[styles.sectionCard, { borderRadius: 16 }]}>
+      <Card style={styles.sectionCard}>
         <Card.Content>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons 
@@ -215,101 +269,51 @@ const AdminRDashboard = () => {
               size={24} 
               color="#01162e" 
             />
-            <Text style={[styles.sectionTitle, { color: '#01162e' }]}>Aperçu des Ressources</Text>
+            <Text style={styles.sectionTitle}>Aperçu des Ressources</Text>
           </View>
           
           <View style={styles.resourceSummary}>
-            <View style={[styles.resourceItem, { borderRadius: 12 }]}>
-              <FontAwesome5 name="book" size={20} color="#4CAF50" />
-              <Text style={styles.resourceText}>Cours: {dashboardData.nbrCours}</Text>
-            </View>
-            <View style={[styles.resourceItem, { borderRadius: 12 }]}>
-              <Feather name="file-text" size={20} color="#2196F3" />
-              <Text style={styles.resourceText}>TD: {dashboardData.nbrTd}</Text>
-            </View>
-            <View style={[styles.resourceItem, { borderRadius: 12 }]}>
-              <Ionicons name="flask" size={20} color="#FF9800" />
-              <Text style={styles.resourceText}>TP: {dashboardData.nbrTp}</Text>
-            </View>
-            <View style={[styles.resourceItem, { borderRadius: 12 }]}>
-              <MaterialIcons name="assignment" size={20} color="#F44336" />
-              <Text style={styles.resourceText}>Examens: {dashboardData.nbrExam}</Text>
-            </View>
+            {resourceItems.map((item, index) => (
+              <ResourceItem key={index} {...item} />
+            ))}
           </View>
 
           <View style={styles.totalResources}>
-            <Text style={[styles.totalText, { color: '#01162e' }]}>
-              Total des Ressources: {dashboardData.nbrResources}
+            <Text style={styles.totalText}>
+              Total des Ressources: {dashboardData?.nbrResources || 0}
             </Text>
-            <Chip icon="file" style={[styles.fileChip, { borderRadius: 20 }]}>
-              Fichiers: {dashboardData.nbrFichier}
-            </Chip>
-            <Chip icon="video" style={[styles.videoChip, { borderRadius: 20 }]}>
-              Vidéos: {dashboardData.nbrVideo}
-            </Chip>
+            <View style={styles.chipContainer}>
+              {fileTypeItems.map((item, index) => (
+                <Chip
+                  key={index}
+                  icon={item.icon}
+                  style={[styles.chip, { backgroundColor: item.color }]}
+                  textStyle={styles.chipText}
+                >
+                  {item.label}: {item.value}
+                </Chip>
+              ))}
+            </View>
           </View>
         </Card.Content>
       </Card>
 
       {/* Charts Section */}
       <View style={styles.chartsContainer}>
-        {/* Resource Distribution Chart */}
-        <Card style={[styles.chartCard, { borderRadius: 16 }]}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons 
-                name="chart-pie" 
-                size={24} 
-                color="#01162e" 
-              />
-              <Text style={[styles.sectionTitle, { color: '#01162e' }]}>Distribution des Ressources</Text>
-            </View>
-            
-            <PieChart
-              data={resourceChartData}
-              width={Dimensions.get('window').width - 40}
-              height={200}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              }}
-              accessor="count"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
-          </Card.Content>
-        </Card>
-
-        {/* File Type Chart */}
-        <Card style={[styles.chartCard, { borderRadius: 16 }]}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons 
-                name="file-chart" 
-                size={24} 
-                color="#01162e" 
-              />
-              <Text style={[styles.sectionTitle, { color: '#01162e' }]}>Types de Fichiers</Text>
-            </View>
-            
-            <PieChart
-              data={fileTypeChartData}
-              width={Dimensions.get('window').width - 40}
-              height={200}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              }}
-              accessor="count"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
-          </Card.Content>
-        </Card>
+        <ProgressChart 
+          title="Distribution des Ressources" 
+          icon="chart-pie" 
+          items={resourceItems}
+        />
+        <ProgressChart 
+          title="Types de Fichiers" 
+          icon="file-chart" 
+          items={fileTypeItems}
+        />
       </View>
 
       {/* Detailed Stats */}
-      <Card style={[styles.sectionCard, { borderRadius: 16 }]}>
+      <Card style={styles.sectionCard}>
         <Card.Content>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons 
@@ -317,7 +321,7 @@ const AdminRDashboard = () => {
               size={24} 
               color="#01162e" 
             />
-            <Text style={[styles.sectionTitle, { color: '#01162e' }]}>Statistiques Détaillées</Text>
+            <Text style={styles.sectionTitle}>Statistiques Détaillées</Text>
           </View>
           
           <DataTable>
@@ -328,22 +332,22 @@ const AdminRDashboard = () => {
 
             <DataTable.Row>
               <DataTable.Cell>Professeurs</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrProfesseur}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrProfesseur || 0}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>Filières</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrFiliere}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrFiliere || 0}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>Modules</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrModule}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrModule || 0}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>Ressources</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrResources}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrResources || 0}</DataTable.Cell>
             </DataTable.Row>
           </DataTable>
         </Card.Content>
@@ -356,8 +360,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    borderTopRightRadius: 20,
-    borderTopLeftRadius: 20,
+    backgroundColor: '#f8f9fa'
   },
   loaderContainer: {
     flex: 1,
@@ -366,25 +369,20 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     marginBottom: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 16,
-    elevation: 2,
   },
   statCard: {
-    width: 200,
-    marginRight: 15,
+    width: 160,
+    marginRight: 12,
     borderRadius: 16,
-    elevation: 3,
   },
   statCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 15,
+    paddingHorizontal: 12,
   },
   statTextContainer: {
-    marginLeft: 15,
+    marginLeft: 12,
   },
   statTitle: {
     color: 'white',
@@ -398,54 +396,56 @@ const styles = StyleSheet.create({
   sectionCard: {
     marginBottom: 20,
     borderRadius: 16,
-    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 10,
+    color: '#01162e'
   },
   resourceSummary: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   resourceItem: {
     width: '48%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
     padding: 10,
     backgroundColor: '#f5f5f5',
-    borderRadius: 12,
+    borderRadius: 8,
   },
   resourceText: {
     marginLeft: 10,
     fontSize: 14,
   },
   totalResources: {
-    marginTop: 15,
+    marginTop: 16,
   },
   totalText: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 8,
+    color: '#01162e'
   },
-  fileChip: {
-    marginRight: 10,
-    marginBottom: 10,
-    backgroundColor: '#9C27B0',
-    borderRadius: 20,
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
-  videoChip: {
-    backgroundColor: '#009688',
-    borderRadius: 20,
+  chip: {
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipText: {
+    color: 'white',
   },
   chartsContainer: {
     marginBottom: 20,
@@ -453,7 +453,27 @@ const styles = StyleSheet.create({
   chartCard: {
     marginBottom: 15,
     borderRadius: 16,
-    elevation: 2,
+  },
+  progressItem: {
+    marginBottom: 12,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  progressLabel: {
+    marginLeft: 8,
+    fontSize: 14,
+    flex: 1,
+  },
+  progressValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
   },
 });
 

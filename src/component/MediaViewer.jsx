@@ -37,12 +37,26 @@ const MediaViewer = ({ uri, type = 'PDF', onClose, testMode = false }) => {
     const currentType = testMode ? testType : type;
     
     if (currentType === 'VIDEO') {
-      // For videos, use the URI directly (full YouTube URL)
+      // Convert YouTube watch URL to embed URL
+      if (currentUri.includes('youtube.com/watch')) {
+        // Extract video ID from watch URL
+        const videoId = currentUri.split('v=')[1]?.split('&')[0];
+        if (videoId) {
+          return { uri: `https://www.youtube.com/embed/${videoId}` };
+        }
+      } else if (currentUri.includes('youtu.be/')) {
+        // Handle shortened YouTube URLs
+        const videoId = currentUri.split('youtu.be/')[1]?.split('?')[0];
+        if (videoId) {
+          return { uri: `https://www.youtube.com/embed/${videoId}` };
+        }
+      }
+      // If not a recognized YouTube format or conversion failed, use original URL
       return { uri: currentUri };
     }
     
-    // For PDF files, we need to use a PDF viewer
-    if (currentType === 'PDF') {
+    // For PDF files or FICHIER, we need to use a PDF viewer
+    if (currentType === 'PDF' || currentType === 'FICHIER') {
       const pdfUrl = `${BASE_URL}/api/files/getFile/${currentUri}`;
       // Use Google PDF Viewer to display the PDF
       return { 
@@ -50,7 +64,7 @@ const MediaViewer = ({ uri, type = 'PDF', onClose, testMode = false }) => {
       };
     }
     
-    // For other file types (FICHIER), add the BASE_URL
+    // For other file types, add the BASE_URL
     return { 
       uri: `${BASE_URL}/api/files/getFile/${currentUri}`
     };
