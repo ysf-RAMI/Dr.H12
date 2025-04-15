@@ -21,7 +21,14 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.drh1",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "adbOptions": {
+        "device": "127.0.0.1:5555"
+      },
+      "permissions": [
+        "NOTIFICATIONS",
+        "VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+ import { jwtDecode } from 'jwt-decode';
 
 const AnnouncementScreen = () => {
   // State management
@@ -265,6 +266,9 @@ const AddAnnouncementDialog = ({
     return true;
   };
 
+ 
+  
+  // In the handleSave function of AddAnnouncementDialog:
   const handleSave = async () => {
     if (!validateForm() || isUploading || !token || !profId) return;
   
@@ -272,6 +276,17 @@ const AddAnnouncementDialog = ({
     setUploadProgress(0);
   
     try {
+      // Get professor's profile for notification
+      const decoded = jwtDecode(token);
+      const email = decoded.sub;
+      
+      const profileResponse = await axios.get(
+        `${baseUrl}/api/professeur/getProfil/${email}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const professorName = `${profileResponse.data.prenom} ${profileResponse.data.nom}`;
+
       const formData = new FormData();
       formData.append('titre', title);
       formData.append('description', description);
@@ -285,7 +300,6 @@ const AddAnnouncementDialog = ({
         });
       }
   
-      // Save announcement
       const response = await axios.post(
         `${baseUrl}/api/professeur/addAnnonce`, 
         formData,
@@ -303,31 +317,34 @@ const AddAnnouncementDialog = ({
         }
       );
   
-      // Get all tokens
-      const tokensResponse = await axios.get(`${baseUrl}/api/student/getTokens`);
+      // Get all tokens for notification
+      const tokensResponse = await axios.get(`http://192.168.3.41:8080/api/student/getTokens`);
       const tokens = tokensResponse.data;
   
       // Send notification to each token
-      await Promise.all(tokens.map(token => 
-        fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            to: token,
-            title: title,
-            body: `New announcement from Professor ${profId}`,
-            data: { 
-              profId,
-              announcementId: response.data.id
-            },
-          })
-        })
-      ));
+      if (tokens && tokens.length > 0) {
+        await Promise.all(tokens.map(async (token) => {
+          try {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                to: token,
+                title: `Nouvelle Annonce: ${title}`,
+                body: `Dr.${professorName} a publié une nouvelle annonce`,
+
+              })
+            });
+          } catch (error) {
+            console.error('Error sending notification:', error);
+          }
+        }));
+      }
   
-      Alert.alert('Success', 'Announcement added and notifications sent');
+      Alert.alert('Success', 'Announcement added successfully');
       onSuccess();
       handleClose();
     } catch (error) {

@@ -21,6 +21,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { debounce } from 'lodash';
 import MediaViewer from '../MediaViewer';
+// JWT decoding library
+import {jwtDecode} from 'jwt-decode';
+
+// Theme colors matching ExamScreen's theme
+const themeColors = {
+  primary: '#01162e',
+  secondary: '#3a86ff',
+  accent: '#4361ee',
+  background: '#f8f9fa',
+  surface: '#ffffff',
+  text: '#333333',
+  textLight: '#666666',
+  error: '#d90429',
+  success: '#38b000',
+};
 
 const CoursScreen = () => {
   // State management
@@ -29,33 +44,31 @@ const CoursScreen = () => {
   const [filieres, setFilieres] = useState([]);
   const [modules, setModules] = useState([]);
   const [courses, setCourses] = useState([]);
-  const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [openPdfDialog, setOpenPdfDialog] = useState(false);
+  const [dialogType, setDialogType] = useState(null); // 'add', 'edit', 'delete', 'media'
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [selectedModule, setSelectedModule] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    module: '',
+    type: 'FICHIER',
+    file: null,
+    videoUrl: ''
+  });
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(null);
-  const [formErrors, setFormErrors] = useState({});
+  const [errors, setErrors] = useState({});
   const [initialLoading, setInitialLoading] = useState(true);
-  const [courseName, setCourseName] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
   const [profId, setProfId] = useState('');
   const [token, setToken] = useState('');
-  const [isFullscreenMedia, setIsFullscreenMedia] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Add this new function
-  const handleToggleFullscreen = (fullscreen) => {
-    setIsFullscreenMedia(fullscreen);
-  };
+  // Configuration
+  const baseUrl = 'https://doctorh1-kjmev.ondigitalocean.app';
+
+  // Refresh data
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -67,19 +80,7 @@ const CoursScreen = () => {
     } finally {
       setRefreshing(false);
     }
-  }, [token, profId, fetchResources, fetchFilieres, fetchModules]);
-
-  // Configuration
-  const baseUrl = 'https://doctorh1-kjmev.ondigitalocean.app';
-
-  // Debounced handlers
-  const debouncedSetCourseName = debounce((text) => {
-    setCourseName(text);
-  }, 300);
-  
-  const debouncedSetVideoUrl = debounce((text) => {
-    setVideoUrl(text);
-  }, 300);
+  }, [token, profId]);
 
   // Show alert function
   const showAlert = (title, message) => {
@@ -181,56 +182,38 @@ const CoursScreen = () => {
   );
 
   // Dialog handlers
-  const handleOpenAddDialog = () => {
-    setSelectedCourse({ dataType: '' });
-    setSelectedModule('');
-    setFileName('');
-    setCourseName('');
-    setVideoUrl('');
-    setSelectedFile(null);
+  const openDialog = (type, course = null) => {
+    setDialogType(type);
+    setSelectedCourse(course);
+    
+    if (type === 'edit' && course) {
+      setFormData({
+        name: course.nom || '',
+        module: course.moduleName || '',
+        type: course.dataType || 'FICHIER',
+        file: null,
+        videoUrl: course.lien || ''
+      });
+    } else if (type === 'add') {
+      setFormData({
+        name: '',
+        module: '',
+        type: 'FICHIER',
+        file: null,
+        videoUrl: ''
+      });
+    }
+    
+    setErrors({});
     setUploadProgress(0);
-    setIsUploading(false);
-    setFormErrors({});
-    setOpenAddDialog(true);
   };
 
-  const handleOpenEditDialog = (course) => {
-    setSelectedCourse(course);
-    setSelectedModule(course.moduleName);
-    setCourseName(course.nom || '');
-    setVideoUrl(course.lien || '');
-    setFileName(course.dataType === 'FICHIER' ? course.lien?.split('/').pop() || '' : '');
-    setSelectedFile(null);
-    setUploadProgress(0);
-    setIsUploading(false);
-    setFormErrors({});
-    setOpenEditDialog(true);
-  };
-
-  const handleOpenDeleteDialog = (course) => {
-    setSelectedCourse(course);
-    setOpenDeleteDialog(true);
-  };
-
-  const handleOpenPdfDialog = (course) => {
-    setSelectedCourse(course);
-    setOpenPdfDialog(true);
-  };
-
-  const handleCloseDialogs = () => {
+  const closeDialog = () => {
     if (!isUploading && !isProcessing) {
-      setOpenAddDialog(false);
-      setOpenEditDialog(false);
-      setOpenDeleteDialog(false);
-      setOpenPdfDialog(false);
+      setDialogType(null);
       setSelectedCourse(null);
-      setSelectedModule('');
-      setFileName('');
-      setCourseName('');
-      setVideoUrl('');
-      setSelectedFile(null);
-      setUploadProgress(0);
-      setFormErrors({});
+      setSelectedIndex(null);
+      setIsFullscreen(false);
     } else {
       showAlert('Please wait', 'Please wait until the operation is complete');
     }
@@ -257,8 +240,7 @@ const CoursScreen = () => {
           return null;
         }
         
-        setFileName(file.name);
-        setSelectedFile(file);
+        setFormData(prev => ({ ...prev, file }));
         return file;
       }
     } catch (error) {
@@ -269,56 +251,146 @@ const CoursScreen = () => {
   };
 
   // Form validation
-  const validateForm = () => {
-    const errors = {};
+  const validate = () => {
+    const newErrors = {};
     
-    if (!courseName) {
-      errors.name = 'Course name is required';
-    }
+    if (!formData.name.trim()) newErrors.name = 'Course name is required';
+    if (!formData.module) newErrors.module = 'Module is required';
     
-    if (!selectedModule) {
-      errors.module = 'Module is required';
-    }
-    
-    if (!selectedCourse?.dataType) {
-      errors.dataType = 'Type is required';
-    } else if (selectedCourse.dataType === 'VIDEO' && !videoUrl) {
-      errors.lien = 'Video URL is required';
-    } else if (selectedCourse.dataType === 'FICHIER') {
-      // For edit case, check if there's an existing file or a new one is selected
-      if (!selectedFile && !selectedCourse?.lien) {
-        errors.file = 'PDF file is required';
+    if (formData.type === 'VIDEO') {
+      if (!formData.videoUrl.trim()) {
+        newErrors.videoUrl = 'Video URL is required';
+      } else if (!formData.videoUrl.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/)) {
+        newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
+    } else if (formData.type === 'FICHIER' && !formData.file && !selectedCourse?.lien) {
+      newErrors.file = 'PDF file is required';
     }
     
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   // Save course
   const handleSaveCourse = async () => {
-    if (!validateForm() || isProcessing) return;
-  
-    // Additional check for PDF files in edit mode
-    if (selectedCourse?.dataType === 'FICHIER' && 
-        !selectedFile && 
-        !selectedCourse?.lien && 
-        openEditDialog) {
-      showAlert('Warning', 'Please select a PDF file or keep the existing one');
-      return;
-    }
-  
-    setIsProcessing(true);
-    setIsUploading(true);
-    setUploadProgress(0);
+    if (!validate()) return;
   
     try {
-      // ... rest of the save logic remains the same
+      // First decode token to get email
+      const decoded = jwtDecode(token);
+      const email = decoded.sub;
+  
+      // Get professor's profile
+      const profileResponse = await axios.get(
+        `${baseUrl}/api/professeur/getProfil/${email}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const professorName = `${profileResponse.data.prenom} ${profileResponse.data.nom}`;
+  
+      const form = new FormData();
+      form.append('nom', formData.name.trim());
+      form.append('type', 'COURS');
+      form.append('dataType', formData.type);
+      
+      if (formData.type === 'VIDEO') {
+        form.append('lien', formData.videoUrl.trim());
+      } else if (formData.file) {
+        form.append('data', {
+          uri: formData.file.uri,
+          name: formData.file.name,
+          type: formData.file.mimeType || 'application/pdf',
+        });
+      } else if (selectedCourse?.lien) {
+        form.append('lien', selectedCourse.lien);
+      }
+      
+      const selectedModuleObj = modules.find(m => m.name === formData.module);
+      if (selectedModuleObj) {
+        form.append('moduleId', selectedModuleObj.id);
+      }
+      form.append('professorId', profId);
+      
+      if (dialogType === 'edit' && selectedCourse) {
+        form.append('id', selectedCourse.id);
+      }
+  
+      const url = dialogType === 'add' 
+        ? `${baseUrl}/api/professeur/addResource`
+        : `${baseUrl}/api/professeur/updateResource`;
+      
+      const method = dialogType === 'add' ? 'post' : 'put';
+      
+      const response = await axios[method](url, form, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
+        },
+        onUploadProgress: progressEvent => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          setUploadProgress(percentCompleted);
+        },
+      });
+  
+      // Get all tokens for notification
+      const tokensResponse = await axios.get(
+        `http://192.168.3.41:8080/api/student/getTokens`
+      );
+      
+      const tokens = tokensResponse.data;
+  
+      // Send notification to each token
+      if (tokens && tokens.length > 0) {
+        const resourceType = formData.type === 'VIDEO' ? 'vidéo' : 'PDF';
+        await Promise.all(tokens.map(async (token) => {
+          try {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                to: token,
+                title: `Nouveau Cours: ${formData.name}`,
+                body: `Dr.${professorName} a ajouté un nouveau cours  dans module : ${formData.module}`,
+                data: { 
+                  profId,
+                  courseId: response.data.id,
+                  professorName,
+                  courseName: formData.name,
+                  moduleId: modules.find(m => m.name === formData.module)?.id,
+                  type: formData.type
+                },
+              })
+            });
+          } catch (error) {
+            console.error('Erreur lors de l\'envoi de la notification:', error);
+          }
+        }));
+      }
+  
+      // In the handleSaveCourse function, replace:
+      Alert.alert('Succès', `Cours ${dialogType === 'add' ? 'ajouté' : 'modifié'} avec succès`);
+      await fetchResources(token, profId); // This line is incorrect
+      closeDialog();
+      await fetchResources(); // Use the correct function name
+      closeDialog();
     } catch (error) {
-      // ... error handling
-    } finally {
-      setIsProcessing(false);
-      setIsUploading(false);
+      console.error('Erreur lors de la sauvegarde du cours:', error);
+      let errorMessage = 'Échec de la sauvegarde du cours';
+      if (error.response) {
+        if (error.response.status === 413) {
+          errorMessage = 'Fichier trop volumineux (max 50MB)';
+        } else if (error.response.status === 403) {
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+        } else {
+          errorMessage = error.response.data?.message || errorMessage;
+        }
+      }
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -331,10 +403,18 @@ const CoursScreen = () => {
       );
       showAlert('Success', 'Course deleted successfully');
       fetchResources();
-      handleCloseDialogs();
+      closeDialog();
     } catch (error) {
       console.error('Error deleting course:', error);
-      showAlert('Error', error.response?.data?.message || 'Failed to delete course');
+      let errorMessage = 'Failed to delete course';
+      if (error.response) {
+        if (error.response.status === 403) {
+          errorMessage = 'Session expired. Please login again.';
+        } else {
+          errorMessage = error.response.data?.message || errorMessage;
+        }
+      }
+      showAlert('Error', errorMessage);
     }
   };
 
@@ -355,17 +435,17 @@ const CoursScreen = () => {
           <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
             {value || `Select ${label}`}
           </Text>
-          <IconButton icon="chevron-down" size={20} />
+          <IconButton icon="chevron-down" size={20} iconColor={themeColors.textLight} />
         </TouchableOpacity>
         
         {error && (
-          <HelperText type="error">{error}</HelperText>
+          <HelperText type="error" style={styles.errorText}>{error}</HelperText>
         )}
         
         <Portal>
-          <Dialog visible={visible} onDismiss={() => setVisible(false)}>
-            <Dialog.Title>Select {label}</Dialog.Title>
-            <Dialog.ScrollArea style={styles.dropdownScrollArea}>
+          <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
+            <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
+            <Dialog.ScrollArea style={styles.dialogScrollArea}>
               <ScrollView>
                 {items.map((item, index) => (
                   <React.Fragment key={index}>
@@ -375,9 +455,10 @@ const CoursScreen = () => {
                         onSelect(item.name || item.nom);
                         setVisible(false);
                       }}
+                      titleStyle={styles.listItemTitle}
                       right={props => 
                         (item.name === value || item.nom === value) ? 
-                          <List.Icon {...props} icon="check" /> : null
+                          <List.Icon {...props} icon="check" color={themeColors.accent} /> : null
                       }
                     />
                     {index < items.length - 1 && <Divider />}
@@ -386,7 +467,7 @@ const CoursScreen = () => {
               </ScrollView>
             </Dialog.ScrollArea>
             <Dialog.Actions>
-              <Button onPress={() => setVisible(false)}>Cancel</Button>
+              <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Cancel</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
@@ -396,9 +477,9 @@ const CoursScreen = () => {
 
   if (initialLoading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#01162e" />
-        <Text style={{ marginTop: 16, color: '#01162e' }}>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={themeColors.primary} />
+        <Text style={{ marginTop: 16, color: themeColors.primary }}>
           Chargement des données...
         </Text>
       </View>
@@ -407,365 +488,256 @@ const CoursScreen = () => {
 
   return (
     <PaperProvider>
-      <ScrollView 
-        style={styles.container}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            colors={["#4080be"]} 
-          />
-        }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Searchbar
-            placeholder="Search courses..."
-            onChangeText={(text) => setSearchTerm(text)}
-            value={searchTerm}
-            style={styles.search}
-            iconColor="#4080be"
-          />
-          <Button
-            mode="contained"
-            onPress={handleOpenAddDialog}
-            style={styles.addButton}
-            buttonColor="#01162e"
-            icon="plus"
-          >
-            Add
-          </Button>
-        </View>
-
-        {/* Loading state */}
-        {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator style={styles.loader} animating size="large" color="#01162e" />
+      <View style={styles.container}>
+        <ScrollView 
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              colors={[themeColors.primary]} 
+            />
+          }
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Searchbar
+              placeholder="Search courses..."
+              onChangeText={(text) => setSearchTerm(text)}
+              value={searchTerm}
+              style={styles.search}
+              iconColor={themeColors.primary}
+            />
+            <Button
+              mode="contained"
+              onPress={() => openDialog('add')}
+              style={styles.addButton}
+              buttonColor={themeColors.primary}
+              icon="plus"
+            >
+              Add
+            </Button>
           </View>
-        ) : (
-          <>
-            {/* Course List */}
-            {filteredCourses.length > 0 ? (
-              <View style={styles.listContainer}>
-                {filteredCourses.map((course, index) => (
-                  <Card key={index} style={styles.courseCard}>
+
+          {/* Loading state */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator animating size="large" color={themeColors.primary} />
+            </View>
+          ) : (
+            <>
+              {/* Course List */}
+              {filteredCourses.length > 0 ? (
+                filteredCourses.map((course, index) => (
+                  <Card key={index} style={styles.card}>
                     <Card.Content>
-                      <View style={styles.courseHeader}>
-                        <Text style={styles.courseName}>{course.nom}</Text>
+                      <View style={styles.cardHeader}>
+                        <Text variant="titleMedium" style={styles.cardTitle}>{course.nom}</Text>
                         <Menu
-                          style={{ marginTop: -40 }}
-                          visible={selectedIndex === index && menuVisible}
-                          onDismiss={() => setMenuVisible(false)}
+                          visible={selectedIndex === index && dialogType === 'menu'}
+                          onDismiss={closeDialog}
+                          contentStyle={{ backgroundColor: themeColors.surface }}
                           anchor={
                             <IconButton
                               icon="dots-vertical"
-                              iconColor="#4080be"
+                              iconColor={themeColors.accent}
                               onPress={() => {
                                 setSelectedIndex(index);
-                                setMenuVisible(true);
+                                openDialog('menu', course);
                               }}
                             />
                           }
                         >
-                          <Menu.Item
+                          <Menu.Item 
                             onPress={() => {
-                              handleOpenEditDialog(course);
-                              setMenuVisible(false);
+                              openDialog('edit', course);
                             }}
                             title="Edit"
                             leadingIcon="pencil"
-                            titleStyle={{ color: '#01162e' }}
+                            titleStyle={{ color: themeColors.text }}
                           />
                           <Divider />
-                          <Menu.Item
+                          <Menu.Item 
                             onPress={() => {
-                              handleOpenDeleteDialog(course);
-                              setMenuVisible(false);
+                              openDialog('delete', course);
                             }}
                             title="Delete"
                             leadingIcon="delete"
-                            titleStyle={{ color: '#f44336' }}
+                            titleStyle={{ color: themeColors.error }}
                           />
                         </Menu>
                       </View>
                       
-                      <Text style={styles.courseModule}>Module: {course.moduleName}</Text>
+                      <Text variant="bodyMedium" style={styles.moduleText}>
+                        Module: {course.moduleName}
+                      </Text>
                       
-                      <View style={styles.courseActions}>
-                        <Button
-                          mode="outlined"
-                          onPress={() => handleOpenPdfDialog(course)}
-                          icon={course.dataType === 'VIDEO' ? 'video' : 'file'}
-                          textColor="#4080be"
-                          style={styles.viewButton}
-                        >
-                          {course.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
-                        </Button>
-                      </View>
+                      <Button
+                        mode="outlined"
+                        onPress={() => {
+                          setSelectedCourse(course);
+                          setIsFullscreen(true);
+                        }}
+                        icon={course.dataType === 'VIDEO' ? 'video' : 'file'}
+                        style={styles.viewButton}
+                        textColor={themeColors.accent}
+                      >
+                        {course.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
+                      </Button>
                     </Card.Content>
                   </Card>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.emptyText}>No courses found</Text>
-            )}
-          </>
-        )}
+                ))
+              ) : (
+                <Text style={styles.emptyText}>No courses found</Text>
+              )}
+            </>
+          )}
+        </ScrollView>
 
-        {/* Add Course Dialog */}
+        {/* Add/Edit Dialog */}
         <Portal>
-          <Dialog visible={openAddDialog} onDismiss={handleCloseDialogs} style={styles.dialog}>
-            <Dialog.Title style={styles.dialogTitle}>Add New Course</Dialog.Title>
+          <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
+            <Dialog.Title style={styles.dialogTitle}>
+              {dialogType === 'add' ? 'Add New Course' : 'Edit Course'}
+            </Dialog.Title>
             <Divider style={styles.divider} />
-            <Dialog.ScrollArea style={styles.dialogScrollArea}>
-              <ScrollView>
-                <View style={styles.dialogContent}>
-                  <TextInput
-                    label="Course Name"
-                    onChangeText={debouncedSetCourseName}
-                    style={styles.input}
-                    mode="outlined"
-                    error={!!formErrors.name}
-                    outlineColor="#4080be"
-                    activeOutlineColor="#01162e"
-                  />
-                  {formErrors.name && <HelperText type="error">{formErrors.name}</HelperText>}
-
-                  <CustomDropdown
-                    label="Type"
-                    value={selectedCourse?.dataType === 'VIDEO' ? 'Video' : 
-                          selectedCourse?.dataType === 'FICHIER' ? 'PDF' : ''}
-                    items={[
-                      { id: 'VIDEO', name: 'Video' },
-                      { id: 'FICHIER', name: 'PDF' }
-                    ]}
-                    onSelect={(value) => 
-                      setSelectedCourse({
-                        ...selectedCourse,
-                        dataType: value === 'Video' ? 'VIDEO' : 'FICHIER'
-                      })
-                    }
-                    error={formErrors.dataType}
-                  />
-
-                  {selectedCourse?.dataType === 'VIDEO' ? (
-                    <>
-                      <TextInput
-                        label="Video URL"
-                        onChangeText={debouncedSetVideoUrl}
-                        style={styles.input}
-                        mode="outlined"
-                        error={!!formErrors.lien}
-                        outlineColor="#4080be"
-                        activeOutlineColor="#01162e"
-                      />
-                      {formErrors.lien && <HelperText type="error">{formErrors.lien}</HelperText>}
-                      <HelperText type="info" style={styles.infoText}>
-                        Example: https://www.youtube.com/watch?v=videoId
-                      </HelperText>
-                    </>
-                  ) : selectedCourse?.dataType === 'FICHIER' ? (
-                    <>
-                      <Button
-                        mode="outlined"
-                        onPress={pickDocument}
-                        icon="file-upload"
-                        style={styles.uploadButton}
-                        textColor="#4080be"
-                      >
-                        {fileName ? `Selected: ${fileName}` : 'Upload PDF'}
-                      </Button>
-                      {formErrors.file && (
-                        <HelperText type="error">{formErrors.file}</HelperText>
-                      )}
-                      {isUploading && (
-                        <View style={styles.progressContainer}>
-                          <Text>Uploading: {uploadProgress}%</Text>
-                          <ProgressBar progress={uploadProgress / 100} color="#4080be" />
-                        </View>
-                      )}
-                    </>
-                  ) : null}
-
-                  <CustomDropdown
-                    label="Module"
-                    value={selectedModule}
-                    items={modules}
-                    onSelect={setSelectedModule}
-                    error={formErrors.module}
-                  />
+            <Dialog.ScrollArea>
+              <View style={styles.dialogContent}>
+                <TextInput
+                  label="Course Name"
+                  defaultValue={formData.name || ''}
+                  onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
+                  style={styles.input}
+                  mode="outlined"
+                  error={!!errors.name}
+                  outlineColor={themeColors.textLight}
+                  activeOutlineColor={themeColors.accent}
+                />
+                {errors.name && <HelperText type="error" style={styles.errorText}>{errors.name}</HelperText>}
+                
+                <CustomDropdown
+                  label="Module"
+                  value={formData.module}
+                  items={modules}
+                  onSelect={(value) => setFormData(prev => ({ ...prev, module: value }))}
+                  error={errors.module}
+                />
+                
+                <View style={styles.typeSection}>
+                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <View style={styles.typeButtons}>
+                    <Button
+                      mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
+                      onPress={() => setFormData(prev => ({ ...prev, type: 'FICHIER' }))}
+                      style={styles.typeButton}
+                      icon="file-pdf-box"
+                      buttonColor={formData.type === 'FICHIER' ? themeColors.accent : undefined}
+                      textColor={formData.type === 'FICHIER' ? themeColors.surface : themeColors.accent}
+                    >
+                      PDF
+                    </Button>
+                    <Button
+                      mode={formData.type === 'VIDEO' ? 'contained' : 'outlined'}
+                      onPress={() => setFormData(prev => ({ ...prev, type: 'VIDEO' }))}
+                      style={styles.typeButton}
+                      icon="youtube"
+                      buttonColor={formData.type === 'VIDEO' ? themeColors.accent : undefined}
+                      textColor={formData.type === 'VIDEO' ? themeColors.surface : themeColors.accent}
+                    >
+                      Video
+                    </Button>
+                  </View>
                 </View>
-              </ScrollView>
+                
+                {formData.type === 'FICHIER' ? (
+                  <View style={styles.uploadSection}>
+                    <Button
+                      mode="outlined"
+                      onPress={pickDocument}
+                      icon="file-upload"
+                      style={styles.uploadButton}
+                      textColor={themeColors.accent}
+                    >
+                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                    </Button>
+                    {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
+                    {selectedCourse?.lien && !formData.file && dialogType === 'edit' && (
+                      <Text style={styles.currentFile}>You should upload file again </Text>
+                    )}
+                    {uploadProgress > 0 && (
+                      <View style={styles.progressContainer}>
+                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <ProgressBar 
+                          progress={uploadProgress / 100} 
+                          color={themeColors.accent}
+                          style={styles.progressBar}
+                        />
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.videoSection}>
+                    <TextInput
+                      label="YouTube URL"
+                      defaultValue={formData.videoUrl || ''}
+                      onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
+                      style={styles.input}
+                      mode="outlined"
+                      error={!!errors.videoUrl}
+                      left={<TextInput.Icon icon="youtube" color={themeColors.accent} />}
+                      outlineColor={themeColors.textLight}
+                      activeOutlineColor={themeColors.accent}
+                    />
+                    {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
+                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                  </View>
+                )}
+              </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={handleCloseDialogs} textColor="#666">Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
               <Button 
                 onPress={handleSaveCourse} 
                 mode="contained"
                 loading={isProcessing}
                 disabled={isProcessing}
-                buttonColor="#01162e"
+                buttonColor={themeColors.primary}
               >
-                Save
-              </Button>
-            </Dialog.Actions>
-          </Dialog>
-
-          {/* Edit Dialog */}
-          <Dialog visible={openEditDialog} onDismiss={handleCloseDialogs} style={styles.dialog}>
-            <Dialog.Title style={styles.dialogTitle}>Edit Course</Dialog.Title>
-            <Divider style={styles.divider} />
-            <Dialog.ScrollArea style={styles.dialogScrollArea}>
-              <ScrollView>
-                <View style={styles.dialogContent}>
-                  <TextInput
-                    label="Course Name"
-                    defaultValue={selectedCourse?.nom || ''}
-                    onChangeText={debouncedSetCourseName}
-                    style={styles.input}
-                    mode="outlined"
-                    error={!!formErrors.name}
-                    outlineColor="#4080be"
-                    activeOutlineColor="#01162e"
-                    onBlur={() => {
-                      if (!courseName) {
-                        setFormErrors(prev => ({ ...prev, name: 'Course name is required' }));
-                      }
-                    }}
-                  />
-                  {formErrors.name && <HelperText type="error">{formErrors.name}</HelperText>}
-
-                  <CustomDropdown
-                    label="Type"
-                    value={selectedCourse?.dataType === 'VIDEO' ? 'Video' : 
-                          selectedCourse?.dataType === 'FICHIER' ? 'PDF' : ''}
-                    items={[
-                      { id: 'VIDEO', name: 'Video' },
-                      { id: 'FICHIER', name: 'PDF' }
-                    ]}
-                    onSelect={(value) => 
-                      setSelectedCourse({
-                        ...selectedCourse,
-                        dataType: value === 'Video' ? 'VIDEO' : 'FICHIER'
-                      })
-                    }
-                    error={formErrors.dataType}
-                  />
-
-                  {selectedCourse?.dataType === 'VIDEO' ? (
-                    <>
-                      <TextInput
-                        label="Video URL"
-                        defaultValue={selectedCourse?.lien || ''}
-                        onChangeText={debouncedSetVideoUrl}
-                        style={styles.input}
-                        mode="outlined"
-                        error={!!formErrors.lien}
-                        onBlur={() => {
-                          if (selectedCourse?.dataType === 'VIDEO' && !videoUrl) {
-                            setFormErrors(prev => ({ ...prev, lien: 'Video URL is required' }));
-                          }
-                        }}
-                      />
-                      {formErrors.lien && <HelperText type="error">{formErrors.lien}</HelperText>}
-                      <HelperText type="info" style={styles.infoText}>
-                        Example: https://www.youtube.com/watch?v=videoId
-                      </HelperText>
-                    </>
-                  ) : selectedCourse?.dataType === 'FICHIER' ? (
-                    <>
-                      <Text style={styles.currentFile}>
-                      ajouter le fichier pdf 
-                      </Text>
-                      <Button
-                        mode="outlined"
-                        onPress={pickDocument}
-                        icon="file-upload"
-                        style={styles.uploadButton}
-                      >
-                        {selectedFile ? `Selected: ${fileName}` : 'Upload New PDF'}
-                      </Button>
-                      {formErrors.file && (
-                        <HelperText type="error">{formErrors.file}</HelperText>
-                      )}
-                      {isUploading && (
-                        <View style={styles.progressContainer}>
-                          <Text>Uploading: {uploadProgress}%</Text>
-                          <ProgressBar progress={uploadProgress / 100} />
-                        </View>
-                      )}
-                    </>
-                  ) : null}
-
-                  <CustomDropdown
-                    label="Module"
-                    value={selectedModule}
-                    items={modules}
-                    onSelect={setSelectedModule}
-                    error={formErrors.module}
-                  />
-                </View>
-              </ScrollView>
-            </Dialog.ScrollArea>
-            <Divider style={styles.divider} />
-            <Dialog.Actions>
-              <Button onPress={handleCloseDialogs} textColor="#666">Cancel</Button>
-              <Button 
-                onPress={handleSaveCourse} 
-                mode="contained"
-                loading={isProcessing}
-                disabled={isProcessing}
-                buttonColor="#01162e"
-              >
-                Save Changes
+                {dialogType === 'add' ? 'Add Course' : 'Save Changes'}
               </Button>
             </Dialog.Actions>
           </Dialog>
 
           {/* Delete Dialog */}
-          <Dialog visible={openDeleteDialog} onDismiss={handleCloseDialogs} style={styles.dialog}>
+          <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
             <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
-            <Divider style={styles.divider} />
             <Dialog.Content>
-              <Text>
-                Are you sure you want to delete this course: {selectedCourse?.nom}?
-              </Text>
+              <Text>Are you sure you want to delete this course?</Text>
+              <Text style={styles.courseName}>{selectedCourse?.nom}</Text>
+              <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
             </Dialog.Content>
-            <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={handleCloseDialogs} textColor="#666">Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
               <Button 
                 onPress={handleDeleteCourse} 
                 mode="contained" 
-                buttonColor="#f44336"
+                buttonColor={themeColors.error}
               >
                 Delete
               </Button>
             </Dialog.Actions>
           </Dialog>
-
-          {/* PDF Viewer Dialog */}
-          <Dialog 
-            visible={openPdfDialog} 
-            onDismiss={handleCloseDialogs}
-            dismissable={false}
-            style={styles.fullscreenDialog}
-          >
-            <Dialog.Content style={styles.pdfContainer}>
-              {selectedCourse?.lien ? (
-                <MediaViewer 
-                  uri={selectedCourse.lien}
-                  type={selectedCourse?.dataType}
-                  onClose={handleCloseDialogs}
-                />
-              ) : (
-                <Text>No media available</Text>
-              )}
-            </Dialog.Content>
-          </Dialog>
+          
+          {/* Media Viewer */}
+          {isFullscreen && selectedCourse && (
+            <MediaViewer
+              uri={selectedCourse.lien}
+              type={selectedCourse.dataType}
+              onClose={() => setIsFullscreen(false)}
+            />
+          )}
         </Portal>
-      </ScrollView>
+      </View>
     </PaperProvider>
   );
 };
@@ -774,11 +746,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: themeColors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  loaderContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -788,132 +760,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    gap: 8,
   },
   search: {
     flex: 1,
-    marginRight: 8,
-    height: 40,
-    backgroundColor: '#ffffff',
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    elevation: 2,
   },
   addButton: {
-    width: 80,
-    height: 40,
-    justifyContent: 'center',
-  },
-  loader: {
-    marginVertical: 32,
-  },
-  listContainer: {
-    marginBottom: 16,
-  },
-  courseCard: {
-    marginBottom: 12,
-    elevation: 2,
     borderRadius: 8,
-    backgroundColor: 'white',
-    borderLeftWidth: 4,
-    borderLeftColor: '#01162e',
+    elevation: 2,
   },
-  courseHeader: {
+  card: {
+    marginBottom: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: 12,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: themeColors.accent,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  courseName: {
-    fontSize: 16,
+  cardTitle: {
     fontWeight: 'bold',
-    flex: 1,
-    color: '#01162e',
+    color: themeColors.text,
+    fontSize: 16,
   },
-  fullscreenDialog: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    margin: 0,
-    padding: 0,
-    maxHeight: '100%',
-    maxWidth: '100%',
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'black',
-    zIndex: 999999,
-  },
-  pdfContainer: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    padding: 0,
-    margin: 0,
-  },
-  courseModule: {
+  moduleText: {
+    color: themeColors.secondary,
+    marginVertical: 8,
     fontSize: 14,
-    color: '#4080be',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  courseType: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  courseActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
   },
   viewButton: {
-    borderColor: '#4080be',
+    marginTop: 8,
+    borderColor: themeColors.accent,
+    borderRadius: 8,
   },
   emptyText: {
     textAlign: 'center',
-    marginVertical: 32,
-    color: '#666',
-    fontSize: 16,
+    marginTop: 32,
+    color: themeColors.textLight,
   },
   input: {
-    marginBottom: 16,
-    backgroundColor: 'white',
-  },
-  uploadButton: {
-    marginBottom: 16,
-    borderColor: '#4080be',
-  },
-  currentFile: {
     marginBottom: 8,
-    color: '#4080be',
-    fontSize: 14,
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  pdfDialog: {
-    maxHeight: '90%',
-  },
-  dialog: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    elevation: 5,
-  },
-  dialogTitle: {
-    color: '#01162e',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    fontSize: 18,
-  },
-  dialogContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  dialogScrollArea: {
-    maxHeight: 400,
-  },
-  divider: {
-    backgroundColor: '#e0e0e0',
-    height: 1,
-    marginVertical: 4,
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
   },
   dropdownContainer: {
     marginBottom: 16,
@@ -923,47 +818,110 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#4080be',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'white',
+    borderColor: themeColors.accent,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: themeColors.surface,
   },
   dropdownButtonError: {
-    borderColor: '#f44336',
+    borderColor: themeColors.error,
   },
   dropdownSelectedText: {
-    color: '#01162e',
+    color: themeColors.text,
+    fontSize: 16,
   },
   dropdownPlaceholderText: {
-    color: '#aaa',
+    color: themeColors.textLight,
+    fontSize: 16,
   },
-  dropdownScrollArea: {
+  inputLabel: {
+    fontSize: 14,
+    color: themeColors.secondary,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  dialogTitle: {
+    color: themeColors.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 20,
+  },
+  uploadButton: {
+    marginBottom: 8,
+    borderColor: themeColors.accent,
+    borderRadius: 8,
+  },
+  typeSection: {
+    marginBottom: 16,
+  },
+  typeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  typeButton: {
+    flex: 1,
+    borderRadius: 8,
+  },
+  uploadSection: {
+    gap: 8,
+  },
+  videoSection: {
+    gap: 4,
+  },
+  progressContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 14,
+    color: themeColors.textLight,
+    marginBottom: 4,
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+  },
+  divider: {
+    backgroundColor: themeColors.background,
+    height: 1,
+    marginVertical: 8,
+  },
+  dialog: {
+    backgroundColor: themeColors.surface,
+    borderRadius: 12,
+  },
+  dialogContent: {
+    padding: 16,
+    gap: 16,
+  },
+  currentFile: {
+    color: themeColors.secondary,
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  courseName: {
+    fontWeight: 'bold',
+    marginVertical: 8,
+    color: themeColors.primary,
+  },
+  deleteWarning: {
+    color: themeColors.error,
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  dialogScrollArea: {
     maxHeight: 300,
     paddingHorizontal: 0,
   },
-  inputLabel: {
-    fontSize: 12,
-    color: '#4080be',
-    marginBottom: 4,
-    paddingLeft: 8,
-    fontWeight: '500',
+  listItemTitle: {
+    color: themeColors.text,
+  },
+  errorText: {
+    color: themeColors.error,
   },
   infoText: {
-    marginBottom: 16,
-    color: '#4080be',
-  },
-  deleteText: {
-    fontSize: 16,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  deleteWarning: {
-    fontSize: 14,
-    color: '#f44336',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginTop: 8,
+    color: themeColors.textLight,
   },
 });
 

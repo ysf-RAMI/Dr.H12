@@ -1,352 +1,263 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
-import {
-  Button,
-  Dialog,
-  Portal,
-  Text,
-  TextInput,
-  Provider as PaperProvider,
-  Searchbar,
-  IconButton,
-  HelperText,
-  Menu,
-  Divider,
-  Card,
-  ProgressBar,
-  List,
-} from 'react-native-paper';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, StyleSheet, Alert, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { Button, Dialog, Portal, Text, TextInput, Provider as PaperProvider, Searchbar, IconButton, HelperText, Menu, Divider, Card, ProgressBar, List } from 'react-native-paper';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
-import { debounce } from 'lodash';
 import MediaViewer from '../MediaViewer';
+import { jwtDecode } from 'jwt-decode';
+
+const themeColors = {
+  primary: '#01162e',
+  secondary: '#3a86ff',
+  accent: '#4361ee',
+  background: '#f8f9fa',
+  surface: '#ffffff',
+  text: '#333333',
+  textLight: '#666666',
+  error: '#d90429',
+  success: '#38b000',
+};
 
 const ExamScreen = () => {
-  // State management
-  const [resources, setResources] = useState([]);
-  const [modules, setModules] = useState([]);
-  const [exams, setExams] = useState([]);
-  const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [selectedExam, setSelectedExam] = useState(null);
-  const [selectedModule, setSelectedModule] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileName, setFileName] = useState('');
+  // State
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(null);
-  const [formErrors, setFormErrors] = useState({});
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [examName, setExamName] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [profId, setProfId] = useState('');
-  const [token, setToken] = useState('');
-  const [isFullscreenMedia, setIsFullscreenMedia] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // Refs for abort controller
-  const abortControllerRef = useRef(null);
+  const [exams, setExams] = useState([]);
+  const [modules, setModules] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dialogType, setDialogType] = useState(null); // 'add', 'edit', 'delete', 'menu'
+  const [selectedExam, setSelectedExam] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    module: '',
+    type: 'FICHIER',
+    file: null,
+    videoUrl: ''
+  });
+  const [errors, setErrors] = useState({});
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [token, setToken] = useState('');
+  const [profId, setProfId] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Configuration
   const baseUrl = 'https://doctorh1-kjmev.ondigitalocean.app';
 
-  // Debounced handlers
-  const debouncedSetExamName = debounce((text) => {
-    setExamName(text);
-  }, 300);
-  
-  const debouncedSetVideoUrl = debounce((text) => {
-    setVideoUrl(text);
-  }, 300);
+  // Load initial data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const authData = await AsyncStorage.getItem('auth');
+        const storedProfId = await AsyncStorage.getItem('profId');
+        
+        if (!authData || !storedProfId) {
+          throw new Error('Authentication data not found');
+        }
 
-  // Show alert function
-  const showAlert = useCallback((title, message) => {
-    Alert.alert(title, typeof message === 'string' ? message : JSON.stringify(message));
+        const parsedAuth = JSON.parse(authData);
+        if (!parsedAuth.token) {
+          throw new Error('Token not found');
+        }
+
+        setToken(parsedAuth.token);
+        setProfId(storedProfId);
+        
+        await fetchExams(parsedAuth.token, storedProfId);
+        await fetchModules(parsedAuth.token, storedProfId);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        Alert.alert('Error', 'Failed to load data. Please login again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
   }, []);
 
-  // Load authentication data
-  const loadAuthData = useCallback(async () => {
+  // Fetch Exams with proper authentication
+  const fetchExams = async (authToken, professorId) => {
     try {
-      const [authData, storedProfId] = await Promise.all([
-        AsyncStorage.getItem('auth'),
-        AsyncStorage.getItem('profId')
-      ]);
-      
-      if (!authData || !storedProfId) {
-        throw new Error('Authentication data not found');
-      }
-
-      const parsedAuth = JSON.parse(authData);
-      if (!parsedAuth.token) {
-        throw new Error('Token not found');
-      }
-
-      setToken(parsedAuth.token);
-      setProfId(storedProfId);
-    } catch (error) {
-      console.error('Error loading auth data:', error);
-      showAlert('Error', 'Failed to load authentication data. Please login again.');
-    } finally {
-      setInitialLoading(false);
-    }
-  }, [showAlert]);
-
-  // Fetch data functions
-  const fetchResources = useCallback(async () => {
-    if (!token || !profId) return;
-    
-    try {
-      abortControllerRef.current = new AbortController();
       const response = await axios.get(
-        `${baseUrl}/api/professeur/getAllResources/${profId}`,
+        `${baseUrl}/api/professeur/getAllResources/${professorId}`,
         { 
-          headers: { Authorization: `Bearer ${token}` },
-          signal: abortControllerRef.current.signal
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
         }
       );
-      setResources(response.data);
       setExams(response.data.filter(r => r.type === "EXAM"));
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error('Error fetching resources:', error);
-        showAlert('Error', 'Failed to fetch exams');
+      console.error('Error fetching exams:', error);
+      if (error.response?.status === 403) {
+        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+      } else {
+        Alert.alert('Error', 'Failed to fetch exams. Please try again later.');
       }
     }
-  }, [token, profId, showAlert]);
+  };
 
-  const fetchModules = useCallback(async () => {
-    if (!token || !profId) return;
-    
+  // Fetch modules with proper authentication
+  const fetchModules = async (authToken, professorId) => {
     try {
-      abortControllerRef.current = new AbortController();
       const response = await axios.get(
-        `${baseUrl}/api/professeur/getAllModuleByProfId/${profId}`,
+        `${baseUrl}/api/professeur/getAllModuleByProfId/${professorId}`,
         { 
-          headers: { Authorization: `Bearer ${token}` },
-          signal: abortControllerRef.current.signal
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
         }
       );
       setModules(response.data);
     } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error('Error fetching modules:', error);
-        showAlert('Error', 'Failed to fetch modules');
+      console.error('Error fetching modules:', error);
+      if (error.response?.status === 403) {
+        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+      } else {
+        Alert.alert('Error', 'Failed to fetch modules. Please try again later.');
       }
     }
-  }, [token, profId, showAlert]);
+  };
 
-  // Add refresh function
-  const onRefresh = useCallback(async () => {
+  // Refresh handler
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      if (token && profId) {
-        await Promise.all([fetchResources(), fetchModules()]);
-      }
+      await fetchExams(token, profId);
+      await fetchModules(token, profId);
     } catch (error) {
-      console.error('Error refreshing data:', error);
-      showAlert('Error', 'Failed to refresh data');
+      console.error('Error refreshing:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [token, profId, fetchResources, fetchModules, showAlert]);
-
-  // Initial load
-  useEffect(() => {
-    loadAuthData();
-    
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [loadAuthData]);
-
-  // Fetch data when token and profId are available
-  useEffect(() => {
-    if (token && profId) {
-      Promise.all([fetchResources(), fetchModules()])
-        .finally(() => setLoading(false));
-    }
-  }, [token, profId, fetchResources, fetchModules]);
-
-  // Filter exams based on search term
-  const filteredExams = React.useMemo(() => {
-    return exams.filter(
-      exam =>
-        (exam.nom?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (exam.moduleName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    );
-  }, [exams, searchTerm]);
+  }, [token, profId]);
 
   // Dialog handlers
-  const handleOpenAddDialog = useCallback(() => {
-    setSelectedExam({ dataType: '' });
-    setSelectedModule('');
-    setFileName('');
-    setExamName('');
-    setVideoUrl('');
-    setSelectedFile(null);
-    setUploadProgress(0);
-    setIsUploading(false);
-    setFormErrors({});
-    setOpenAddDialog(true);
-  }, []);
-
-  const handleOpenEditDialog = useCallback((exam) => {
+  const openDialog = (type, exam = null) => {
+    setDialogType(type);
     setSelectedExam(exam);
-    setSelectedModule(exam.moduleName);
-    setExamName(exam.nom || '');
-    setVideoUrl(exam.lien || '');
-    setFileName(exam.dataType === 'FICHIER' ? exam.lien?.split('/').pop() || '' : '');
-    setSelectedFile(null);
-    setUploadProgress(0);
-    setIsUploading(false);
-    setFormErrors({});
-    setOpenEditDialog(true);
-  }, []);
-
-  const handleOpenDeleteDialog = useCallback((exam) => {
-    setSelectedExam(exam);
-    setOpenDeleteDialog(true);
-  }, []);
-
-  const handleViewFile = useCallback((exam) => {
-    setSelectedExam(exam);
-    setIsFullscreenMedia(true);
-  }, []);
-
-  const handleCloseDialogs = useCallback(() => {
-    if (!isUploading && !isProcessing) {
-      setOpenAddDialog(false);
-      setOpenEditDialog(false);
-      setOpenDeleteDialog(false);
-      setSelectedExam(null);
-      setSelectedModule('');
-      setFileName('');
-      setExamName('');
-      setVideoUrl('');
-      setSelectedFile(null);
-      setUploadProgress(0);
-      setFormErrors({});
-    } else {
-      showAlert('Please wait', 'Please wait until the operation is complete');
+    
+    if (type === 'edit' && exam) {
+      setFormData({
+        name: exam.nom || '',
+        module: exam.moduleName || '',
+        type: exam.dataType || 'FICHIER',
+        file: null,
+        videoUrl: exam.lien || ''
+      });
+    } else if (type === 'add') {
+      setFormData({
+        name: '',
+        module: '',
+        type: 'FICHIER',
+        file: null,
+        videoUrl: ''
+      });
     }
-  }, [isUploading, isProcessing, showAlert]);
+    
+    setErrors({});
+    setUploadProgress(0);
+  };
+
+  const closeDialog = () => {
+    setDialogType(null);
+    setSelectedExam(null);
+  };
 
   // File picker
-  const pickDocument = useCallback(async () => {
+  const pickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
         copyToCacheDirectory: true,
       });
       
-      if (result.type === 'success' || (result.assets && result.assets.length > 0)) {
-        const file = result.assets ? result.assets[0] : result;
+      if (result.assets && result.assets[0]) {
+        const file = result.assets[0];
         
         if (file.size > 50 * 1024 * 1024) {
-          showAlert('Error', 'File size should be less than 50MB');
-          return null;
+          Alert.alert('Error', 'File size should be less than 50MB');
+          return;
         }
         
         if (!file.mimeType || !file.mimeType.includes('pdf')) {
-          showAlert('Error', 'Please select a PDF file');
-          return null;
+          Alert.alert('Error', 'Please select a PDF file');
+          return;
         }
         
-        setFileName(file.name);
-        setSelectedFile(file);
-        return file;
+        setFormData(prev => ({ ...prev, file }));
       }
     } catch (error) {
-      console.error('Error picking document:', error);
-      showAlert('Error', 'Failed to pick document');
+      console.error('Error picking file:', error);
+      Alert.alert('Error', 'Failed to pick file');
     }
-    return null;
-  }, [showAlert]);
+  };
 
   // Form validation
-  const validateVideoUrl = useCallback((url) => {
-    const videoUrlPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
-    return videoUrlPattern.test(url);
-  }, []);
-  
-  const validateForm = useCallback(() => {
-    const errors = {};
+  const validate = () => {
+    const newErrors = {};
     
-    if (!examName) {
-      errors.name = 'Exam name is required';
-    }
+    if (!formData.name.trim()) newErrors.name = 'Exam name is required';
+    if (!formData.module) newErrors.module = 'Module is required';
     
-    if (!selectedModule) {
-      errors.module = 'Module is required';
-    }
-    
-    if (!selectedExam?.dataType) {
-      errors.dataType = 'Type is required';
-    } else if (selectedExam.dataType === 'VIDEO') {
-      if (!videoUrl) {
-        errors.lien = 'Video URL is required';
-      } else if (!validateVideoUrl(videoUrl)) {
-        errors.lien = 'Please enter a valid YouTube URL';
+    if (formData.type === 'VIDEO') {
+      if (!formData.videoUrl.trim()) {
+        newErrors.videoUrl = 'Video URL is required';
+      } else if (!formData.videoUrl.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/)) {
+        newErrors.videoUrl = 'Please enter a valid YouTube URL';
       }
-    } else if (selectedExam.dataType === 'FICHIER' && !fileName && !selectedExam?.lien) {
-      errors.file = 'PDF file is required';
+    } else if (formData.type === 'FICHIER' && !formData.file && !selectedExam?.lien) {
+      newErrors.file = 'PDF file is required';
     }
     
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  }, [examName, selectedModule, selectedExam, videoUrl, fileName, validateVideoUrl]);
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-  const handleSaveExam = useCallback(async () => {
-    if (!validateForm() || isProcessing) return;
-
-    setIsProcessing(true);
-    setIsUploading(true);
-    setUploadProgress(0);
+  // Save Exam
+  const saveExam = async () => {
+    if (!validate()) return;
 
     try {
-      const formData = new FormData();
-      formData.append('id', selectedExam?.id || '');
-      formData.append('nom', examName);
-      formData.append('type', 'EXAM');
-      formData.append('dataType', selectedExam.dataType);
-
-      if (selectedExam.dataType === 'VIDEO') {
-        formData.append('lien', videoUrl);
-      } else if (selectedExam.dataType === 'FICHIER') {
-        if (selectedFile) {
-          formData.append('data', {
-            uri: selectedFile.uri,
-            name: fileName,
-            type: selectedFile.mimeType || 'application/pdf',
-          });
-        } else if (selectedExam?.lien) {
-          formData.append('lien', selectedExam.lien);
-        }
+      const form = new FormData();
+      form.append('nom', formData.name.trim());
+      form.append('type', 'EXAM');
+      form.append('dataType', formData.type);
+      
+      if (formData.type === 'VIDEO') {
+        form.append('lien', formData.videoUrl.trim());
+      } else if (formData.file) {
+        form.append('data', {
+          uri: formData.file.uri,
+          name: formData.file.name,
+          type: formData.file.mimeType || 'application/pdf',
+        });
+      } else if (selectedExam?.lien) {
+        form.append('lien', selectedExam.lien);
       }
-
-      const selectedModuleObj = modules.find(m => m.name === selectedModule);
+      
+      const selectedModuleObj = modules.find(m => m.name === formData.module);
       if (selectedModuleObj) {
-        formData.append('moduleId', selectedModuleObj.id);
+        form.append('moduleId', selectedModuleObj.id);
       }
-      formData.append('professorId', profId);
+      form.append('professorId', profId);
+      
+      if (dialogType === 'edit' && selectedExam) {
+        form.append('id', selectedExam.id);
+      }
 
-      const url = selectedExam?.id
-        ? `${baseUrl}/api/professeur/updateResource`
-        : `${baseUrl}/api/professeur/addResource`;
-      const method = selectedExam?.id ? 'put' : 'post';
-
-      const response = await axios[method](url, formData, {
+      const url = dialogType === 'add' 
+        ? `${baseUrl}/api/professeur/addResource`
+        : `${baseUrl}/api/professeur/updateResource`;
+      
+      const method = dialogType === 'add' ? 'post' : 'put';
+      
+      await axios[method](url, form, {
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
         },
         onUploadProgress: progressEvent => {
           const percentCompleted = Math.round(
@@ -356,482 +267,395 @@ const ExamScreen = () => {
         },
       });
 
-      showAlert('Success', `Exam ${selectedExam?.id ? 'updated' : 'added'} successfully`);
-      fetchResources();
-      handleCloseDialogs();
+      // Send notification only for new exams
+      if (dialogType === 'add') {
+        // Get professor's profile
+        const decoded = jwtDecode(token);
+        const email = decoded.sub;
+        
+        const profileResponse = await axios.get(
+          `${baseUrl}/api/professeur/getProfil/${email}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        const professorName = `${profileResponse.data.prenom} ${profileResponse.data.nom}`;
+
+        // Get all tokens for notification
+        const tokensResponse = await axios.get(
+          `http://192.168.3.41:8080/api/student/getTokens`
+        );
+        
+        const tokens = tokensResponse.data;
+
+        // Send notification to each token
+        if (tokens && tokens.length > 0) {
+          await Promise.all(tokens.map(async (token) => {
+            try {
+              await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  to: token,
+                  title: `Nouveau Examen: ${formData.name}`,
+                  body: `Dr.${professorName} a ajouté un nouveau examen dans module : ${formData.module}`,
+                  
+                })
+              });
+            } catch (error) {
+              console.error('Error sending notification:', error);
+            }
+          }));
+        }
+      }
+
+      Alert.alert('Success', `Exam ${dialogType === 'add' ? 'added' : 'updated'} successfully`);
+      await fetchExams(token, profId);
+      closeDialog();
     } catch (error) {
       console.error('Error saving exam:', error);
       let errorMessage = 'Failed to save exam';
       if (error.response) {
         if (error.response.status === 413) {
           errorMessage = 'File size is too large (max 50MB)';
+        } else if (error.response.status === 403) {
+          errorMessage = 'Session expired. Please login again.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      showAlert('Error', errorMessage);
-    } finally {
-      setIsProcessing(false);
-      setIsUploading(false);
+      Alert.alert('Error', errorMessage);
     }
-  }, [validateForm, isProcessing, selectedExam, examName, videoUrl, selectedFile, fileName, modules, selectedModule, profId, token, showAlert, fetchResources, handleCloseDialogs]);
+  };
 
-  // Delete exam
-  const handleDeleteExam = useCallback(async () => {
+  // Delete Exam
+  const deleteExam = async () => {
     try {
       await axios.delete(
         `${baseUrl}/api/professeur/deleteResource/${selectedExam.id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      showAlert('Success', 'Exam deleted successfully');
-      fetchResources();
-      handleCloseDialogs();
+      Alert.alert('Success', 'Exam deleted successfully');
+      await fetchExams(token, profId);
+      closeDialog();
     } catch (error) {
       console.error('Error deleting exam:', error);
-      showAlert('Error', error.response?.data?.message || 'Failed to delete exam');
+      let errorMessage = 'Failed to delete exam';
+      if (error.response) {
+        if (error.response.status === 403) {
+          errorMessage = 'Session expired. Please login again.';
+        } else {
+          errorMessage = error.response.data?.message || errorMessage;
+        }
+      }
+      Alert.alert('Error', errorMessage);
     }
-  }, [selectedExam, token, showAlert, fetchResources, handleCloseDialogs]);
-
-  // Custom dropdown component
-  const CustomDropdown = ({ label, value, items, onSelect, error }) => {
-    const [visible, setVisible] = useState(false);
-    
-    return (
-      <View style={styles.dropdownContainer}>
-        <Text style={styles.inputLabel}>{label}</Text>
-        <TouchableOpacity
-          style={[
-            styles.dropdownButton,
-            error ? styles.dropdownButtonError : null
-          ]}
-          onPress={() => setVisible(true)}
-        >
-          <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
-            {value || `Select ${label}`}
-          </Text>
-          <IconButton icon="chevron-down" size={20} iconColor="#4080be" />
-        </TouchableOpacity>
-        
-        {error && (
-          <HelperText type="error">{error}</HelperText>
-        )}
-        
-        <Portal>
-          <Dialog 
-            visible={visible} 
-            onDismiss={() => setVisible(false)}
-            style={styles.dialog}
-          >
-            <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
-            <Divider style={styles.divider} />
-            <Dialog.ScrollArea style={styles.dropdownScrollArea}>
-              <ScrollView>
-                {items.map((item, index) => (
-                  <React.Fragment key={index}>
-                    <List.Item
-                      title={item.name || item.nom}
-                      onPress={() => {
-                        onSelect(item.name || item.nom);
-                        setVisible(false);
-                      }}
-                      right={props => 
-                        (item.name === value || item.nom === value) ? 
-                          <List.Icon {...props} icon="check" color="#4080be" /> : null
-                      }
-                      titleStyle={{ color: '#01162e' }}
-                    />
-                    {index < items.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </ScrollView>
-            </Dialog.ScrollArea>
-            <Divider style={styles.divider} />
-            <Dialog.Actions>
-              <Button onPress={() => setVisible(false)} textColor="#666">Cancel</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
-      </View>
-    );
   };
 
-  if (initialLoading) {
+  // Filter exams based on search
+  const filteredExams = exams.filter(exam => 
+    (exam.nom?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (exam.moduleName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#01162e" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={themeColors.primary} />
+        <Text style={{ marginTop: 16, color: themeColors.primary }}>Loading data...</Text>
       </View>
     );
   }
 
   return (
     <PaperProvider>
-      <ScrollView 
-        style={styles.container}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            colors={["#4080be"]} 
-          />
-        }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Searchbar
-            placeholder="Search exams..."
-            onChangeText={(text) => setSearchTerm(text)}
-            value={searchTerm}
-            style={styles.search}
-            iconColor="#4080be"
-          />
-          <Button
-            mode="contained"
-            onPress={handleOpenAddDialog}
-            style={styles.addButton}
-            buttonColor="#01162e"
-            icon="plus"
-          >
-            Add
-          </Button>
-        </View>
-
-        {/* Loading state */}
-        {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator 
-              style={styles.loader} 
-              animating 
-              size="large" 
-              color="#01162e"
+      <View style={styles.container}>
+        <ScrollView
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={handleRefresh}
+              colors={[themeColors.primary]}
             />
+          }
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Searchbar
+              placeholder="Search Exams..."
+              onChangeText={setSearchTerm}
+              value={searchTerm}
+              style={styles.search}
+              iconColor={themeColors.primary}
+            />
+            <Button
+              mode="contained"
+              onPress={() => openDialog('add')}
+              style={styles.addButton}
+              buttonColor={themeColors.primary}
+              icon="plus"
+            >
+              Add
+            </Button>
           </View>
-        ) : (
-          <>
-            {/* Exam List */}
-            {filteredExams.length > 0 ? (
-              <View style={styles.listContainer}>
-                {filteredExams.map((exam, index) => (
-                  <Card key={index} style={styles.examCard}>
-                    <Card.Content>
-                      <View style={styles.examHeader}>
-                        <Text style={styles.examName}>{exam.nom}</Text>
-                        <Menu
-                          style={{ marginTop: -40 }}
-                          visible={selectedIndex === index && menuVisible}
-                          onDismiss={() => setMenuVisible(false)}
-                          anchor={
-                            <IconButton
-                              icon="dots-vertical"
-                              iconColor="#4080be"
-                              onPress={() => {
-                                setSelectedIndex(index);
-                                setMenuVisible(true);
-                              }}
-                            />
-                          }
-                        >
-                          <Menu.Item
-                            onPress={() => {
-                              handleOpenEditDialog(exam);
-                              setMenuVisible(false);
-                            }}
-                            title="Edit"
-                            leadingIcon="pencil"
-                            titleStyle={{ color: '#01162e' }}
-                          />
-                          <Divider />
-                          <Menu.Item
-                            onPress={() => {
-                              handleOpenDeleteDialog(exam);
-                              setMenuVisible(false);
-                            }}
-                            title="Delete"
-                            leadingIcon="delete"
-                            titleStyle={{ color: '#f44336' }}
-                          />
-                        </Menu>
-                      </View>
-                      
-                      <Text style={styles.examModule}>Module: {exam.moduleName}</Text>
-                      
-                      <View style={styles.examActions}>
-                        <Button
-                          mode="outlined"
-                          onPress={() => handleViewFile(exam)}
-                          icon={exam.dataType === 'VIDEO' ? 'video' : 'file'}
-                          textColor="#4080be"
-                          style={styles.viewButton}
-                        >
-                          {exam.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
-                        </Button>
-                      </View>
-                    </Card.Content>
-                  </Card>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.emptyText}>No exams found</Text>
-            )}
-          </>
-        )}
 
-        {/* Add Exam Dialog */}
+          {/* Exam List */}
+          {filteredExams.length > 0 ? (
+            filteredExams.map((exam, index) => (
+              <Card key={index} style={styles.card}>
+                <Card.Content>
+                  <View style={styles.cardHeader}>
+                    <Text variant="titleMedium" style={styles.cardTitle}>{exam.nom}</Text>
+                    <Menu
+                      visible={selectedExam?.id === exam.id && dialogType === 'menu'}
+                      onDismiss={closeDialog}
+                      contentStyle={{ backgroundColor: themeColors.surface }}
+                      anchor={
+                        <IconButton
+                          icon="dots-vertical"
+                          onPress={() => openDialog('menu', exam)}
+                        />
+                      }
+                    >
+                      <Menu.Item 
+                        title="Edit" 
+                        leadingIcon="pencil" 
+                        onPress={() => openDialog('edit', exam)} 
+                      />
+                      <Divider />
+                      <Menu.Item 
+                        title="Delete" 
+                        leadingIcon="delete" 
+                        onPress={() => openDialog('delete', exam)}
+                        titleStyle={{ color: themeColors.error }}
+                      />
+                    </Menu>
+                  </View>
+                  
+                  <Text variant="bodyMedium" style={styles.moduleText}>
+                    Module: {exam.moduleName}
+                  </Text>
+                  
+                  <Button
+                    mode="outlined"
+                    onPress={() => {
+                      setSelectedExam(exam);
+                      setIsFullscreen(true);
+                    }}
+                    icon={exam.dataType === 'VIDEO' ? 'video' : 'file'}
+                    style={styles.viewButton}
+                    textColor={themeColors.accent}
+                  >
+                    {exam.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
+                  </Button>
+                </Card.Content>
+              </Card>
+            ))
+          ) : (
+            <Text style={styles.emptyText}>No exams found</Text>
+          )}
+        </ScrollView>
+
+        {/* Add/Edit Dialog */}
         <Portal>
-          <Dialog 
-            visible={openAddDialog} 
-            onDismiss={handleCloseDialogs}
-            style={styles.dialog}
-          >
-            <Dialog.Title style={styles.dialogTitle}>Add New Exam</Dialog.Title>
+          <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
+            <Dialog.Title style={styles.dialogTitle}>
+              {dialogType === 'add' ? 'Add New Exam' : 'Edit Exam'}
+            </Dialog.Title>
             <Divider style={styles.divider} />
-            <Dialog.ScrollArea style={styles.dialogScrollArea}>
-              <ScrollView>
-                <View style={styles.dialogContent}>
-                  <TextInput
-                    label="Exam Name"
-                    onChangeText={debouncedSetExamName}
-                    style={styles.input}
-                    mode="outlined"
-                    error={!!formErrors.name}
-                    outlineColor="#4080be"
-                    activeOutlineColor="#01162e"
-                  />
-                  {formErrors.name && <HelperText type="error">{formErrors.name}</HelperText>}
-
-                  <CustomDropdown
-                    label="Type"
-                    value={selectedExam?.dataType === 'VIDEO' ? 'Video' : 
-                          selectedExam?.dataType === 'FICHIER' ? 'PDF' : ''}
-                    items={[
-                      { id: 'VIDEO', name: 'Video' },
-                      { id: 'FICHIER', name: 'PDF' }
-                    ]}
-                    onSelect={(value) => 
-                      setSelectedExam({
-                        ...selectedExam,
-                        dataType: value === 'Video' ? 'VIDEO' : 'FICHIER'
-                      })
-                    }
-                    error={formErrors.dataType}
-                  />
-
-                  {selectedExam?.dataType === 'VIDEO' ? (
-                    <>
-                      <TextInput
-                        label="Video URL"
-                        onChangeText={debouncedSetVideoUrl}
-                        style={styles.input}
-                        mode="outlined"
-                        error={!!formErrors.lien}
-                        outlineColor="#4080be"
-                        activeOutlineColor="#01162e"
-                      />
-                      {formErrors.lien && <HelperText type="error">{formErrors.lien}</HelperText>}
-                      <HelperText type="info" style={styles.infoText}>
-                        Example: https://www.youtube.com/watch?v=videoId
-                      </HelperText>
-                    </>
-                  ) : selectedExam?.dataType === 'FICHIER' ? (
-                    <>
-                      <Button
-                        mode="outlined"
-                        onPress={pickDocument}
-                        icon="file-upload"
-                        style={styles.uploadButton}
-                        textColor="#4080be"
-                      >
-                        {fileName ? `Selected: ${fileName}` : 'Upload PDF'}
-                      </Button>
-                      {formErrors.file && (
-                        <HelperText type="error">{formErrors.file}</HelperText>
-                      )}
-                      {isUploading && (
-                        <View style={styles.progressContainer}>
-                          <Text>Uploading: {uploadProgress}%</Text>
-                          <ProgressBar progress={uploadProgress / 100} color="#4080be" />
-                        </View>
-                      )}
-                    </>
-                  ) : null}
-
-                  <CustomDropdown
-                    label="Module"
-                    value={selectedModule}
-                    items={modules}
-                    onSelect={setSelectedModule}
-                    error={formErrors.module}
-                  />
+            <Dialog.ScrollArea>
+              <View style={styles.dialogContent}>
+                <TextInput
+                  label="Exam Name"
+                  defaultValue={formData.name || ''}
+                  onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
+                  style={styles.input}
+                  mode="outlined"
+                  error={!!errors.name}
+                  outlineColor={themeColors.textLight}
+                  activeOutlineColor={themeColors.accent}
+                />
+                {errors.name && <HelperText type="error" style={styles.errorText}>{errors.name}</HelperText>}
+                
+                <CustomDropdown
+                  label="Module"
+                  value={formData.module}
+                  items={modules}
+                  onSelect={(value) => setFormData(prev => ({ ...prev, module: value }))}
+                  error={errors.module}
+                />
+                
+                <View style={styles.typeSection}>
+                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <View style={styles.typeButtons}>
+                    <Button
+                      mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
+                      onPress={() => setFormData(prev => ({ ...prev, type: 'FICHIER' }))}
+                      style={styles.typeButton}
+                      icon="file-pdf-box"
+                      buttonColor={formData.type === 'FICHIER' ? themeColors.accent : undefined}
+                      textColor={formData.type === 'FICHIER' ? themeColors.surface : themeColors.accent}
+                    >
+                      PDF
+                    </Button>
+                    <Button
+                      mode={formData.type === 'VIDEO' ? 'contained' : 'outlined'}
+                      onPress={() => setFormData(prev => ({ ...prev, type: 'VIDEO' }))}
+                      style={styles.typeButton}
+                      icon="youtube"
+                      buttonColor={formData.type === 'VIDEO' ? themeColors.accent : undefined}
+                      textColor={formData.type === 'VIDEO' ? themeColors.surface : themeColors.accent}
+                    >
+                      Video
+                    </Button>
+                  </View>
                 </View>
-              </ScrollView>
+                
+                {formData.type === 'FICHIER' ? (
+                  <View style={styles.uploadSection}>
+                    <Button
+                      mode="outlined"
+                      onPress={pickFile}
+                      icon="file-upload"
+                      style={styles.uploadButton}
+                      textColor={themeColors.accent}
+                    >
+                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                    </Button>
+                    {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
+                    {selectedExam?.lien && !formData.file && (
+                      <Text style={styles.currentFile}>Current file: {selectedExam.lien.split('/').pop()}</Text>
+                    )}
+                    {uploadProgress > 0 && (
+                      <View style={styles.progressContainer}>
+                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <ProgressBar 
+                          progress={uploadProgress / 100} 
+                          color={themeColors.accent}
+                          style={styles.progressBar}
+                        />
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.videoSection}>
+                    <TextInput
+                      label="YouTube URL"
+                      defaultValue={formData.videoUrl || ''}
+                      onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
+                      style={styles.input}
+                      mode="outlined"
+                      error={!!errors.videoUrl}
+                      left={<TextInput.Icon icon="youtube" color={themeColors.accent} />}
+                      outlineColor={themeColors.textLight}
+                      activeOutlineColor={themeColors.accent}
+                    />
+                    {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
+                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                  </View>
+                )}
+              </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={handleCloseDialogs} textColor="#666">Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
               <Button 
-                onPress={handleSaveExam} 
+                onPress={saveExam} 
                 mode="contained"
-                buttonColor="#01162e"
-                loading={isProcessing}
-                disabled={isProcessing}
+                loading={uploadProgress > 0 && uploadProgress < 100}
+                disabled={uploadProgress > 0 && uploadProgress < 100}
+                buttonColor={themeColors.primary}
               >
-                Save
+                {dialogType === 'add' ? 'Add Exam' : 'Save Changes'}
               </Button>
             </Dialog.Actions>
           </Dialog>
-
-          {/* Edit Dialog */}
-          <Dialog 
-            visible={openEditDialog} 
-            onDismiss={handleCloseDialogs}
-            style={styles.dialog}
-          >
-            <Dialog.Title style={styles.dialogTitle}>Edit Exam</Dialog.Title>
-            <Divider style={styles.divider} />
-            <Dialog.ScrollArea style={styles.dialogScrollArea}>
-              <ScrollView>
-                <View style={styles.dialogContent}>
-                  <TextInput
-                    label="Exam Name"
-                    defaultValue={selectedExam?.nom || ''}
-                    onChangeText={debouncedSetExamName}
-                    style={styles.input}
-                    mode="outlined"
-                    error={!!formErrors.name}
-                    outlineColor="#4080be"
-                    activeOutlineColor="#01162e"
-                  />
-                  {formErrors.name && <HelperText type="error">{formErrors.name}</HelperText>}
-
-                  <CustomDropdown
-                    label="Type"
-                    value={selectedExam?.dataType === 'VIDEO' ? 'Video' : 
-                          selectedExam?.dataType === 'FICHIER' ? 'PDF' : ''}
-                    items={[
-                      { id: 'VIDEO', name: 'Video' },
-                      { id: 'FICHIER', name: 'PDF' }
-                    ]}
-                    onSelect={(value) => 
-                      setSelectedExam({
-                        ...selectedExam,
-                        dataType: value === 'Video' ? 'VIDEO' : 'FICHIER'
-                      })
-                    }
-                    error={formErrors.dataType}
-                  />
-
-                  {selectedExam?.dataType === 'VIDEO' ? (
-                    <>
-                      <TextInput
-                        label="Video URL"
-                        defaultValue={selectedExam?.lien || ''}
-                        onChangeText={debouncedSetVideoUrl}
-                        style={styles.input}
-                        mode="outlined"
-                        error={!!formErrors.lien}
-                        outlineColor="#4080be"
-                        activeOutlineColor="#01162e"
-                      />
-                      {formErrors.lien && <HelperText type="error">{formErrors.lien}</HelperText>}
-                      <HelperText type="info" style={styles.infoText}>
-                        Example: https://www.youtube.com/watch?v=videoId
-                      </HelperText>
-                    </>
-                  ) : selectedExam?.dataType === 'FICHIER' ? (
-                    <>
-                      <Text style={styles.currentFile}>
-                        Current file: {fileName || 'None'}
-                      </Text>
-                      <Button
-                        mode="outlined"
-                        onPress={pickDocument}
-                        icon="file-upload"
-                        style={styles.uploadButton}
-                        textColor="#4080be"
-                      >
-                        {selectedFile ? `Selected: ${fileName}` : 'Upload New PDF'}
-                      </Button>
-                      {formErrors.file && (
-                        <HelperText type="error">{formErrors.file}</HelperText>
-                      )}
-                      {isUploading && (
-                        <View style={styles.progressContainer}>
-                          <Text>Uploading: {uploadProgress}%</Text>
-                          <ProgressBar progress={uploadProgress / 100} color="#4080be" />
-                        </View>
-                      )}
-                    </>
-                  ) : null}
-
-                  <CustomDropdown
-                    label="Module"
-                    value={selectedModule}
-                    items={modules}
-                    onSelect={setSelectedModule}
-                    error={formErrors.module}
-                  />
-                </View>
-              </ScrollView>
-            </Dialog.ScrollArea>
-            <Divider style={styles.divider} />
-            <Dialog.Actions>
-              <Button onPress={handleCloseDialogs} textColor="#666">Cancel</Button>
-              <Button 
-                onPress={handleSaveExam} 
-                mode="contained"
-                buttonColor="#01162e"
-                loading={isProcessing}
-                disabled={isProcessing}
-              >
-                Save Changes
-              </Button>
-            </Dialog.Actions>
-          </Dialog>
-
+          
           {/* Delete Dialog */}
-          <Dialog 
-            visible={openDeleteDialog} 
-            onDismiss={handleCloseDialogs}
-            style={styles.dialog}
-          >
+          <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
             <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
-            <Divider style={styles.divider} />
             <Dialog.Content>
-              <Text style={styles.deleteText}>
-                Are you sure you want to delete this exam?
-              </Text>
+              <Text>Are you sure you want to delete this exam?</Text>
               <Text style={styles.examName}>{selectedExam?.nom}</Text>
               <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
             </Dialog.Content>
-            <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={handleCloseDialogs} textColor="#666">Cancel</Button>
-              <Button 
-                onPress={handleDeleteExam} 
-                mode="contained" 
-                buttonColor="#f44336"
-              >
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={deleteExam} mode="contained" buttonColor={themeColors.error}>
                 Delete
               </Button>
             </Dialog.Actions>
           </Dialog>
-
+          
           {/* Media Viewer */}
-          {isFullscreenMedia && selectedExam && (
+          {isFullscreen && selectedExam && (
             <MediaViewer
-              uri={selectedExam.dataType === 'VIDEO' ? 
-                selectedExam.lien : 
-                `${baseUrl}/api/files/getFile/${selectedExam.lien}`
-              }
+              uri={selectedExam.lien}
               type={selectedExam.dataType}
-              onClose={() => {
-                setIsFullscreenMedia(false);
-                setSelectedExam(null);
-              }}
+              onClose={() => setIsFullscreen(false)}
             />
           )}
         </Portal>
-      </ScrollView>
+      </View>
     </PaperProvider>
+  );
+};
+
+const CustomDropdown = ({ label, value, items, onSelect, error }) => {
+  const [visible, setVisible] = useState(false);
+  
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[
+          styles.dropdownButton,
+          error ? styles.dropdownButtonError : null
+        ]}
+        onPress={() => setVisible(true)}
+      >
+        <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
+          {value || `Select ${label}`}
+        </Text>
+        <IconButton icon="chevron-down" size={20} iconColor={themeColors.textLight} />
+      </TouchableOpacity>
+      
+      {error && (
+        <HelperText type="error" style={styles.errorText}>{error}</HelperText>
+      )}
+      
+      <Portal>
+        <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
+          <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
+          <Dialog.ScrollArea style={styles.dialogScrollArea}>
+            <ScrollView>
+              {items.map((item, index) => (
+                <React.Fragment key={index}>
+                  <List.Item
+                    title={item.name}
+                    onPress={() => {
+                      onSelect(item.name);
+                      setVisible(false);
+                    }}
+                    titleStyle={styles.listItemTitle}
+                    right={props => 
+                      item.name === value ? 
+                        <List.Icon {...props} icon="check" color={themeColors.accent} /> : null
+                    }
+                  />
+                  {index < items.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions>
+            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </View>
   );
 };
 
@@ -839,116 +663,69 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: themeColors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  loaderContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: themeColors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    gap: 8,
   },
   search: {
     flex: 1,
-    marginRight: 8,
-    height: 40,
-    backgroundColor: '#ffffff',
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    elevation: 2,
   },
   addButton: {
-    width: 80,
-    height: 40,
-    justifyContent: 'center',
-  },
-  loader: {
-    marginVertical: 32,
-  },
-  listContainer: {
-    marginBottom: 16,
-  },
-  examCard: {
-    marginBottom: 12,
-    elevation: 2,
     borderRadius: 8,
-    backgroundColor: 'white',
-    borderLeftWidth: 4,
-    borderLeftColor: '#01162e',
+    elevation: 2,
   },
-  examHeader: {
+  card: {
+    marginBottom: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: 12,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: themeColors.accent,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  examName: {
-    fontSize: 16,
+  cardTitle: {
     fontWeight: 'bold',
-    flex: 1,
-    color: '#01162e',
+    color: themeColors.text,
+    fontSize: 16,
   },
-  examModule: {
+  moduleText: {
+    color: themeColors.secondary,
+    marginVertical: 8,
     fontSize: 14,
-    color: '#4080be',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  examActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
   },
   viewButton: {
-    borderColor: '#4080be',
+    marginTop: 8,
+    borderColor: themeColors.accent,
+    borderRadius: 8,
   },
   emptyText: {
     textAlign: 'center',
-    marginVertical: 32,
-    color: '#666',
-    fontSize: 16,
+    marginTop: 32,
+    color: themeColors.textLight,
   },
   input: {
-    marginBottom: 16,
-    backgroundColor: 'white',
-  },
-  uploadButton: {
-    marginBottom: 16,
-    borderColor: '#4080be',
-  },
-  currentFile: {
     marginBottom: 8,
-    color: '#4080be',
-    fontSize: 14,
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  dialog: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    elevation: 5,
-  },
-  dialogTitle: {
-    color: '#01162e',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    fontSize: 18,
-  },
-  dialogContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  dialogScrollArea: {
-    maxHeight: 400,
-  },
-  divider: {
-    backgroundColor: '#e0e0e0',
-    height: 1,
-    marginVertical: 4,
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
   },
   dropdownContainer: {
     marginBottom: 16,
@@ -958,55 +735,110 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#4080be',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'white',
+    borderColor: themeColors.accent,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: themeColors.surface,
   },
   dropdownButtonError: {
-    borderColor: '#f44336',
+    borderColor: themeColors.error,
   },
   dropdownSelectedText: {
-    color: '#01162e',
+    color: themeColors.text,
+    fontSize: 16,
   },
   dropdownPlaceholderText: {
-    color: '#aaa',
+    color: themeColors.textLight,
+    fontSize: 16,
   },
-  dropdownScrollArea: {
+  inputLabel: {
+    fontSize: 14,
+    color: themeColors.secondary,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  dialogTitle: {
+    color: themeColors.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 20,
+  },
+  uploadButton: {
+    marginBottom: 8,
+    borderColor: themeColors.accent,
+    borderRadius: 8,
+  },
+  typeSection: {
+    marginBottom: 16,
+  },
+  typeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  typeButton: {
+    flex: 1,
+    borderRadius: 8,
+  },
+  uploadSection: {
+    gap: 8,
+  },
+  videoSection: {
+    gap: 4,
+  },
+  progressContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 14,
+    color: themeColors.textLight,
+    marginBottom: 4,
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+  },
+  divider: {
+    backgroundColor: themeColors.background,
+    height: 1,
+    marginVertical: 8,
+  },
+  dialog: {
+    backgroundColor: themeColors.surface,
+    borderRadius: 12,
+  },
+  dialogContent: {
+    padding: 16,
+    gap: 16,
+  },
+  currentFile: {
+    color: themeColors.secondary,
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  examName: {
+    fontWeight: 'bold',
+    marginVertical: 8,
+    color: themeColors.primary,
+  },
+  deleteWarning: {
+    color: themeColors.error,
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  dialogScrollArea: {
     maxHeight: 300,
     paddingHorizontal: 0,
   },
-  inputLabel: {
-    fontSize: 12,
-    color: '#4080be',
-    marginBottom: 4,
-    paddingLeft: 8,
-    fontWeight: '500',
+  listItemTitle: {
+    color: themeColors.text,
+  },
+  errorText: {
+    color: themeColors.error,
   },
   infoText: {
-    marginBottom: 16,
-    color: '#4080be',
-  },
-  deleteText: {
-    fontSize: 16,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  deleteWarning: {
-    fontSize: 14,
-    color: '#f44336',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  fullscreenDialog: {
-    margin: 0,
-    backgroundColor: 'white',
-  },
-  pdfContainer: {
-    padding: 0,
-    flex: 1,
+    color: themeColors.textLight,
   },
 });
 

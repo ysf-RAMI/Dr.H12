@@ -15,11 +15,15 @@ const Welcome = () => {
   const { expoPushToken } = useNotification();
   
   useEffect(() => {
+    let isMounted = true;
+
     const checkFirstLaunch = async () => {
       try {
         const hasLaunched = await AsyncStorage.getItem('@app_has_launched');
         const tokenSent = await AsyncStorage.getItem('@push_token_sent');
         
+        if (!isMounted) return;
+
         if (hasLaunched === null) {
           await AsyncStorage.setItem('@app_has_launched', 'true');
         }
@@ -35,23 +39,31 @@ const Welcome = () => {
           }
         }
 
-        if (hasLaunched !== null) {
+        if (hasLaunched !== null && isMounted) {
           navigation.replace('Main');
           return;
         }
       } catch (error) {
         console.error('Error:', error);
+        if (hasLaunched !== null && isMounted) {
+          navigation.replace('Main');
+        }
       } finally {
-        setIsReady(true);
+        if (isMounted) {
+          setIsReady(true);
+        }
       }
     };
 
     checkFirstLaunch();
-  }, [expoPushToken]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [expoPushToken, navigation]);
 
   const handleContinue = () => {
-    // In the handleContinue function and useEffect
-    navigation.replace('Main'); // Instead of 'Home'
+    navigation.replace('Main');
   };
 
   if (!isReady) {

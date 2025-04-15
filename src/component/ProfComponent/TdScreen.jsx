@@ -1,10 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, Alert, ActivityIndicator, RefreshControl } from 'react-native';
-import { Button, Dialog, Portal, Text, TextInput, Provider as PaperProvider, Searchbar, IconButton, HelperText, Menu, Divider, Card, ProgressBar } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, Alert, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { Button, Dialog, Portal, Text, TextInput, Provider as PaperProvider, Searchbar, IconButton, HelperText, Menu, Divider, Card, ProgressBar, List } from 'react-native-paper';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import MediaViewer from '../MediaViewer';
+import { jwtDecode } from 'jwt-decode';
+
+const themeColors = {
+  primary: '#01162e',
+  secondary: '#3a86ff',
+  accent: '#4361ee',
+  background: '#f8f9fa',
+  surface: '#ffffff',
+  text: '#333333',
+  textLight: '#666666',
+  error: '#d90429',
+  success: '#38b000',
+};
 
 const TdScreen = () => {
   // State
@@ -208,20 +221,35 @@ const TdScreen = () => {
     if (!validate()) return;
 
     try {
+      // Get professor's profile for notification
+      const decoded = jwtDecode(token);
+      const email = decoded.sub;
+      
+      const profileResponse = await axios.get(
+        `${baseUrl}/api/professeur/getProfil/${email}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const professorName = `${profileResponse.data.prenom} ${profileResponse.data.nom}`;
+
       const form = new FormData();
       form.append('nom', formData.name.trim());
       form.append('type', 'TD');
       form.append('dataType', formData.type);
       
+      // In the saveTd function, update the file append section:
       if (formData.type === 'VIDEO') {
         form.append('lien', formData.videoUrl.trim());
       } else if (formData.file) {
-        form.append('data', {
+        const fileToUpload = {
           uri: formData.file.uri,
-          name: formData.file.name,
-          type: formData.file.mimeType || 'application/pdf',
-        });
-      } else if (selectedTd?.lien) {
+          type: 'application/pdf',
+          name: formData.file.name || 'document.pdf'
+        };
+        form.append('data', fileToUpload);
+      }
+      
+      if (selectedTd?.lien) {
         form.append('lien', selectedTd.lien);
       }
       
@@ -253,6 +281,39 @@ const TdScreen = () => {
           setUploadProgress(percentCompleted);
         },
       });
+
+      // Send notification only for new TDs
+      if (dialogType === 'add') {
+        // Get all tokens for notification - Updated to use baseUrl
+        const tokensResponse = await axios.get(
+          `http://192.168.3.41:8080/api/student/getTokens`
+        );
+        
+        const tokens = tokensResponse.data;
+
+        // Send notification to each token
+        if (tokens && tokens.length > 0) {
+          await Promise.all(tokens.map(async (token) => {
+            try {
+              await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  to: token,
+                  title: `Nouveau TD: ${formData.name}`,
+                  body: `Dr.${professorName} a ajouté un nouveau TD dans module : ${formData.module}`,
+                
+                })
+              });
+            } catch (error) {
+              console.error('Error sending notification:', error);
+            }
+          }));
+        }
+      }
 
       Alert.alert('Success', `TD ${dialogType === 'add' ? 'added' : 'updated'} successfully`);
       await fetchTds(token, profId);
@@ -306,8 +367,8 @@ const TdScreen = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#01162e" />
-        <Text style={{ marginTop: 16, color: '#01162e' }}>Loading data...</Text>
+        <ActivityIndicator size="large" color={themeColors.primary} />
+        <Text style={{ marginTop: 16, color: themeColors.primary }}>Loading data...</Text>
       </View>
     );
   }
@@ -320,7 +381,7 @@ const TdScreen = () => {
             <RefreshControl 
               refreshing={refreshing} 
               onRefresh={handleRefresh}
-              colors={["#01162e"]}
+              colors={[themeColors.primary]}
             />
           }
         >
@@ -331,13 +392,13 @@ const TdScreen = () => {
               onChangeText={setSearchTerm}
               value={searchTerm}
               style={styles.search}
-              iconColor="#01162e"
+              iconColor={themeColors.primary}
             />
             <Button
               mode="contained"
               onPress={() => openDialog('add')}
               style={styles.addButton}
-              buttonColor="#01162e"
+              buttonColor={themeColors.primary}
               icon="plus"
             >
               Add
@@ -354,12 +415,15 @@ const TdScreen = () => {
                     <Menu
                       visible={selectedTd?.id === td.id && dialogType === 'menu'}
                       onDismiss={closeDialog}
+                      contentStyle={{ backgroundColor: themeColors.surface }}
                       anchor={
                         <IconButton
                           icon="dots-vertical"
                           onPress={() => openDialog('menu', td)}
                         />
+                        
                       }
+                      
                     >
                       <Menu.Item 
                         title="Edit" 
@@ -371,7 +435,8 @@ const TdScreen = () => {
                         title="Delete" 
                         leadingIcon="delete" 
                         onPress={() => openDialog('delete', td)}
-                        titleStyle={{ color: 'red' }}
+                        titleStyle={{ color: themeColors.error }}
+
                       />
                     </Menu>
                   </View>
@@ -388,6 +453,7 @@ const TdScreen = () => {
                     }}
                     icon={td.dataType === 'VIDEO' ? 'video' : 'file'}
                     style={styles.viewButton}
+                    textColor={themeColors.accent}
                   >
                     {td.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
                   </Button>
@@ -401,108 +467,130 @@ const TdScreen = () => {
 
         {/* Add/Edit Dialog */}
         <Portal>
-          <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog}>
+          <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
             <Dialog.Title style={styles.dialogTitle}>
               {dialogType === 'add' ? 'Add New TD' : 'Edit TD'}
             </Dialog.Title>
-            <Dialog.Content>
-              <TextInput
-                label="TD Name"
-                defaultValue={formData.name || ''}
-                onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
-                style={styles.input}
-                error={!!errors.name}
-              />
-              {errors.name && <HelperText type="error">{errors.name}</HelperText>}
-              
-              <Text style={styles.label}>Type</Text>
-              <View style={styles.typeButtons}>
-                <Button
-                  mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
-                  onPress={() => setFormData(prev => ({ ...prev, type: 'FICHIER' }))}
-                  style={styles.typeButton}
-                >
-                  PDF
-                </Button>
-                <Button
-                  mode={formData.type === 'VIDEO' ? 'contained' : 'outlined'}
-                  onPress={() => setFormData(prev => ({ ...prev, type: 'VIDEO' }))}
-                  style={styles.typeButton}
-                >
-                  Video
-                </Button>
-              </View>
-              
-              {formData.type === 'FICHIER' ? (
-                <>
-                  <Button
-                    mode="outlined"
-                    onPress={pickFile}
-                    icon="file-upload"
-                    style={styles.uploadButton}
-                  >
-                    {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
-                  </Button>
-                  {errors.file && <HelperText type="error">{errors.file}</HelperText>}
-                  {selectedTd?.lien && !formData.file && (
-                    <Text style={styles.currentFile}> upload file again</Text>
-                  )}
-                </>
-              ) : (
-                <>
-                  <TextInput
-                    label="Video URL"
-                    defaultValue={formData.videoUrl || ''}
-                    onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
-                    style={styles.input}
-                    error={!!errors.videoUrl}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                  />
-                  {errors.videoUrl && <HelperText type="error">{errors.videoUrl}</HelperText>}
-                </>
-              )}
-              
-              <Text style={styles.label}>Module</Text>
-              <View style={styles.moduleButtons}>
-                {modules.map(module => (
-                  <Button
-                    key={module.id}
-                    mode={formData.module === module.name ? 'contained' : 'outlined'}
-                    onPress={() => setFormData(prev => ({ ...prev, module: module.name }))}
-                    style={styles.moduleButton}
-                  >
-                    {module.name}
-                  </Button>
-                ))}
-              </View>
-              {errors.module && <HelperText type="error">{errors.module}</HelperText>}
-              
-              {uploadProgress > 0 && uploadProgress < 100 && (
-                <View style={styles.progressContainer}>
-                  <Text>Uploading: {uploadProgress}%</Text>
-                  <ProgressBar progress={uploadProgress / 100} color="#01162e" />
+            <Divider style={styles.divider} />
+            <Dialog.ScrollArea>
+              <View style={styles.dialogContent}>
+                <TextInput
+                  label="TD Name"
+                  defaultValue={formData.name || ''}
+                  onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
+                  style={styles.input}
+                  mode="outlined"
+                  error={!!errors.name}
+                  outlineColor={themeColors.textLight}
+                  activeOutlineColor={themeColors.accent}
+                />
+                {errors.name && <HelperText type="error" style={styles.errorText}>{errors.name}</HelperText>}
+                
+                <CustomDropdown
+                  label="Module"
+                  value={formData.module}
+                  items={modules}
+                  onSelect={(value) => setFormData(prev => ({ ...prev, module: value }))}
+                  error={errors.module}
+                />
+                
+                <View style={styles.typeSection}>
+                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <View style={styles.typeButtons}>
+                    <Button
+                      mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
+                      onPress={() => setFormData(prev => ({ ...prev, type: 'FICHIER' }))}
+                      style={styles.typeButton}
+                      icon="file-pdf-box"
+                      buttonColor={formData.type === 'FICHIER' ? themeColors.accent : undefined}
+                      textColor={formData.type === 'FICHIER' ? themeColors.surface : themeColors.accent}
+                    >
+                      PDF
+                    </Button>
+                    <Button
+                      mode={formData.type === 'VIDEO' ? 'contained' : 'outlined'}
+                      onPress={() => setFormData(prev => ({ ...prev, type: 'VIDEO' }))}
+                      style={styles.typeButton}
+                      icon="youtube"
+                      buttonColor={formData.type === 'VIDEO' ? themeColors.accent : undefined}
+                      textColor={formData.type === 'VIDEO' ? themeColors.surface : themeColors.accent}
+                    >
+                      Video
+                    </Button>
+                  </View>
                 </View>
-              )}
-            </Dialog.Content>
+                
+                {formData.type === 'FICHIER' ? (
+                  <View style={styles.uploadSection}>
+                    <Button
+                      mode="outlined"
+                      onPress={pickFile}
+                      icon="file-upload"
+                      style={styles.uploadButton}
+                      textColor={themeColors.accent}
+                    >
+                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                    </Button>
+                    {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
+                    {selectedTd?.lien && !formData.file && (
+                      <Text style={styles.currentFile}>you should upload file again </Text>
+                    )}
+                    {uploadProgress > 0 && (
+                      <View style={styles.progressContainer}>
+                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <ProgressBar 
+                          progress={uploadProgress / 100} 
+                          color={themeColors.accent}
+                          style={styles.progressBar}
+                        />
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.videoSection}>
+                    <TextInput
+                      label="YouTube URL"
+                      defaultValue={formData.videoUrl || ''}
+                      onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
+                      style={styles.input}
+                      mode="outlined"
+                      error={!!errors.videoUrl}
+                      left={<TextInput.Icon icon="youtube" color={themeColors.accent} />}
+                      outlineColor={themeColors.textLight}
+                      activeOutlineColor={themeColors.accent}
+                    />
+                    {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
+                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                  </View>
+                )}
+              </View>
+            </Dialog.ScrollArea>
+            <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={closeDialog}>Cancel</Button>
-              <Button onPress={saveTd} mode="contained">
-                Save
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button 
+                onPress={saveTd} 
+                mode="contained"
+                loading={uploadProgress > 0 && uploadProgress < 100}
+                disabled={uploadProgress > 0 && uploadProgress < 100}
+                buttonColor={themeColors.primary}
+              >
+                {dialogType === 'add' ? 'Add TD' : 'Save Changes'}
               </Button>
             </Dialog.Actions>
           </Dialog>
           
           {/* Delete Dialog */}
           <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
-            <Dialog.Title>Confirm Delete</Dialog.Title>
+            <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
             <Dialog.Content>
               <Text>Are you sure you want to delete this TD?</Text>
               <Text style={styles.tdName}>{selectedTd?.nom}</Text>
               <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={closeDialog}>Cancel</Button>
-              <Button onPress={deleteTd} mode="contained" buttonColor="red">
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={deleteTd} mode="contained" buttonColor={themeColors.error}>
                 Delete
               </Button>
             </Dialog.Actions>
@@ -522,36 +610,99 @@ const TdScreen = () => {
   );
 };
 
+const CustomDropdown = ({ label, value, items, onSelect, error }) => {
+  const [visible, setVisible] = useState(false);
+  
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[
+          styles.dropdownButton,
+          error ? styles.dropdownButtonError : null
+        ]}
+        onPress={() => setVisible(true)}
+      >
+        <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
+          {value || `Select ${label}`}
+        </Text>
+        <IconButton icon="chevron-down" size={20} iconColor={themeColors.textLight} />
+      </TouchableOpacity>
+      
+      {error && (
+        <HelperText type="error" style={styles.errorText}>{error}</HelperText>
+      )}
+      
+      <Portal>
+        <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
+          <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
+          <Dialog.ScrollArea style={styles.dialogScrollArea}>
+            <ScrollView>
+              {items.map((item, index) => (
+                <React.Fragment key={index}>
+                  <List.Item
+                    title={item.name}
+                    onPress={() => {
+                      onSelect(item.name);
+                      setVisible(false);
+                    }}
+                    titleStyle={styles.listItemTitle}
+                    right={props => 
+                      item.name === value ? 
+                        <List.Icon {...props} icon="check" color={themeColors.accent} /> : null
+                    }
+                  />
+                  {index < items.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions>
+            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: themeColors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: themeColors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    gap: 8,
   },
   search: {
     flex: 1,
-    marginRight: 8,
-    backgroundColor: 'white',
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
+    elevation: 2,
   },
   addButton: {
-    width: 80,
-    height: 40,
+    borderRadius: 8,
+    elevation: 2,
   },
   card: {
     marginBottom: 12,
-    backgroundColor: 'white',
+    backgroundColor: themeColors.surface,
+    borderRadius: 12,
+    elevation: 3,
     borderLeftWidth: 4,
-    borderLeftColor: '#01162e',
+    borderLeftColor: themeColors.accent,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -560,71 +711,141 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontWeight: 'bold',
-    color: '#01162e',
+    color: themeColors.text,
+    fontSize: 16,
   },
   moduleText: {
-    color: '#4080be',
+    color: themeColors.secondary,
     marginVertical: 8,
+    fontSize: 14,
   },
   viewButton: {
     marginTop: 8,
-    borderColor: '#01162e',
+    borderColor: themeColors.accent,
+    borderRadius: 8,
   },
   emptyText: {
     textAlign: 'center',
     marginTop: 32,
-    color: '#666',
+    color: themeColors.textLight,
   },
   input: {
     marginBottom: 8,
-    backgroundColor: 'white',
+    backgroundColor: themeColors.surface,
+    borderRadius: 8,
   },
-  label: {
-    marginTop: 8,
-    marginBottom: 4,
-    color: '#666',
-  },
-  typeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  dropdownContainer: {
     marginBottom: 16,
   },
-  typeButton: {
-    flex: 1,
-    marginHorizontal: 4,
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: themeColors.accent,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: themeColors.surface,
+  },
+  dropdownButtonError: {
+    borderColor: themeColors.error,
+  },
+  dropdownSelectedText: {
+    color: themeColors.text,
+    fontSize: 16,
+  },
+  dropdownPlaceholderText: {
+    color: themeColors.textLight,
+    fontSize: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: themeColors.secondary,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  dialogTitle: {
+    color: themeColors.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 20,
   },
   uploadButton: {
     marginBottom: 8,
-    borderColor: '#01162e',
+    borderColor: themeColors.accent,
+    borderRadius: 8,
   },
-  currentFile: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
+  typeSection: {
+    marginBottom: 16,
   },
-  moduleButtons: {
+  typeButtons: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
+    gap: 8,
+    marginTop: 8,
   },
-  moduleButton: {
-    margin: 4,
+  typeButton: {
+    flex: 1,
+    borderRadius: 8,
+  },
+  uploadSection: {
+    gap: 8,
+  },
+  videoSection: {
+    gap: 4,
   },
   progressContainer: {
     marginTop: 8,
+    marginBottom: 8,
   },
-  dialogTitle: {
-    color: '#01162e',
-    fontWeight: 'bold',
+  progressText: {
+    fontSize: 14,
+    color: themeColors.textLight,
+    marginBottom: 4,
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+  },
+  divider: {
+    backgroundColor: themeColors.background,
+    height: 1,
+    marginVertical: 8,
+  },
+  dialog: {
+    backgroundColor: themeColors.surface,
+    borderRadius: 12,
+  },
+  dialogContent: {
+    padding: 16,
+    gap: 16,
+  },
+  currentFile: {
+    color: themeColors.secondary,
+    fontSize: 14,
+    fontStyle: 'italic',
   },
   tdName: {
     fontWeight: 'bold',
     marginVertical: 8,
-    color: '#01162e',
+    color: themeColors.primary,
   },
   deleteWarning: {
-    color: 'red',
+    color: themeColors.error,
     fontStyle: 'italic',
+    marginTop: 8,
+  },
+  dialogScrollArea: {
+    maxHeight: 300,
+    paddingHorizontal: 0,
+  },
+  listItemTitle: {
+    color: themeColors.text,
+  },
+  errorText: {
+    color: themeColors.error,
+  },
+  infoText: {
+    color: themeColors.textLight,
   },
 });
 
