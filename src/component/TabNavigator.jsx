@@ -87,29 +87,30 @@ export default function TabNavigator() {
         <Tab.Screen 
           name="HomeTab" 
           component={HomeStack} 
-          options={{ tabBarLabel: 'Home' }}
+          options={{ tabBarLabel: 'Home', }}
         />
         <Tab.Screen 
           name="AnnouncementsTab" 
           component={Announcements} 
-          options={{ tabBarLabel: 'Announcements' }}
+          options={{ tabBarLabel: 'Announcements',animation: 'shift' }}
         />
         <Tab.Screen 
           name="FilièresTab" 
           component={FiliersNavigator} 
-          options={{ tabBarLabel: 'Filières' }}
+          options={{ tabBarLabel: 'Filières',animation: 'shift' }}
           />
           {!isAuthenticated ? (
             <Tab.Screen 
               name="LoginTab" 
               component={Login} 
-              options={{ tabBarLabel: 'Login' }}
+              options={{ tabBarLabel: 'Login',animation: 'shift',sceneStyle: { backgroundColor: '#01162e' } }}
             />
           ) : (
             <Tab.Screen 
               name="DashboardTab" 
               component={Dashboard} 
-              options={{ tabBarLabel: 'Dashboard' }}
+              options={{ tabBarLabel: 'Dashboard' ,animation: 'shift'}}
+              
             />
           )}
       </Tab.Navigator>

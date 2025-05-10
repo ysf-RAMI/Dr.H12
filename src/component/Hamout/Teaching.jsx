@@ -1,23 +1,13 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, Animated, Dimensions } from "react-native";
-import { Text, Surface, Divider } from "react-native-paper";
+// Remove animation-related imports
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, ScrollView, Dimensions } from "react-native";
+import { Text } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 
 export default function Teaching() {
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Animation for fade-in effect
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-    
-    setLoaded(true);
-    
     const handleDimensionChange = ({ window }) => {
       setScreenWidth(window.width);
     };
@@ -154,33 +144,8 @@ export default function Teaching() {
   ];
 
   const TimelineItem = ({ item, index }) => {
-    const itemFadeAnim = useRef(new Animated.Value(0)).current;
-    
-    useEffect(() => {
-      // Staggered animation for each timeline item
-      Animated.timing(itemFadeAnim, {
-        toValue: 1,
-        duration: 800,
-        delay: index * 200,
-        useNativeDriver: true,
-      }).start();
-    }, []);
-    
     return (
-      <Animated.View 
-        style={[
-          styles.timelineItem,
-          {
-            opacity: itemFadeAnim,
-            transform: [{
-              translateY: itemFadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [50, 0],
-              })
-            }]
-          }
-        ]}
-      >
+      <View style={styles.timelineItem}>
         <View style={styles.timelineIconContainer}>
           <MaterialIcons name="school" size={24} color="#01162e" />
         </View>
@@ -203,7 +168,7 @@ export default function Teaching() {
             ))}
           </View>
         </View>
-      </Animated.View>
+      </View>
     );
   };
 
@@ -211,39 +176,13 @@ export default function Teaching() {
     <ScrollView style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.contentContainer}>
-          <Animated.Text 
-            style={[
-              styles.sectionTitle,
-              {
-                opacity: fadeAnim,
-                transform: [{
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0],
-                  })
-                }]
-              }
-            ]}
-          >
+          <Text style={styles.sectionTitle}>
             Activités Pédagogiques Universitaires
-          </Animated.Text>
+          </Text>
           
-          <Animated.Text 
-            style={[
-              styles.sectionSubtitle,
-              {
-                opacity: fadeAnim,
-                transform: [{
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-15, 0],
-                  })
-                }]
-              }
-            ]}
-          >
+          <Text style={styles.sectionSubtitle}>
             Enseignant (Cours/TD/TP) à l'Ecole Supérieure de Technologie à Guelmim
-          </Animated.Text>
+          </Text>
           
           <View style={styles.timelineContainer}>
             {teachingData.map((item, index) => (

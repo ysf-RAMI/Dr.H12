@@ -5,19 +5,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 export default function Communications() {
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const [loaded, setLoaded] = useState(false);
+  // Remove animation-related states
+  const [loaded, setLoaded] = useState(true);
 
   useEffect(() => {
-    // Animation for fade-in effect
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-    
-    setLoaded(true);
-    
     const handleDimensionChange = ({ window }) => {
       setScreenWidth(window.width);
     };
@@ -94,33 +85,9 @@ export default function Communications() {
 
   const PublicationCard = ({ publication, index }) => {
     const [pressed, setPressed] = useState(false);
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    const itemFadeAnim = useRef(new Animated.Value(0)).current;
-    
-    useEffect(() => {
-      // Staggered animation for each card
-      Animated.timing(itemFadeAnim, {
-        toValue: 1,
-        duration: 800,
-        delay: index * 100,
-        useNativeDriver: true,
-      }).start();
-    }, []);
     
     const handlePress = () => {
-      setPressed(true);
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.03,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        })
-      ]).start(() => setPressed(false));
+      setPressed(!pressed);
     };
     
     const getIconName = (name) => {
@@ -137,19 +104,9 @@ export default function Communications() {
         onPress={handlePress}
         activeOpacity={0.9}
       >
-        <Animated.View 
+        <View 
           style={[
             styles.publicationCard,
-            {
-              transform: [
-                { scale: scaleAnim },
-                { translateY: itemFadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }) }
-              ],
-              opacity: itemFadeAnim,
-            },
             pressed && styles.cardPressed
           ]}
         >
@@ -171,7 +128,7 @@ export default function Communications() {
             <MaterialIcons name="group" size={18} color="#666" style={styles.peopleIcon} />
             <Text style={styles.peopleText}>{publication.people}</Text>
           </View>
-        </Animated.View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -180,22 +137,9 @@ export default function Communications() {
     <ScrollView style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.contentContainer}>
-          <Animated.Text 
-            style={[
-              styles.sectionTitle,
-              {
-                opacity: fadeAnim,
-                transform: [{
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0],
-                  })
-                }]
-              }
-            ]}
-          >
+          <Text style={styles.sectionTitle}>
             Communications Nationales & Internationales
-          </Animated.Text>
+          </Text>
           
           <View style={styles.publicationsContainer}>
             {publications.map((publication, index) => (

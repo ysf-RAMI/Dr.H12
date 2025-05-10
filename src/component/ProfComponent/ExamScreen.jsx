@@ -282,7 +282,7 @@ const ExamScreen = () => {
 
         // Get all tokens for notification
         const tokensResponse = await axios.get(
-          `http://192.168.3.41:8080/api/student/getTokens`
+          `${baseUrl}/api/student/getTokens`
         );
         
         const tokens = tokensResponse.data;

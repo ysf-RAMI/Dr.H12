@@ -306,7 +306,7 @@ const AdminRDashboard = () => {
           items={resourceItems}
         />
         <ProgressChart 
-          title="Types de Fichiers" 
+          title="Types de Ressources" 
           icon="file-chart" 
           items={fileTypeItems}
         />

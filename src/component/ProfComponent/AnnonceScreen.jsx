@@ -333,9 +333,8 @@ const AddAnnouncementDialog = ({
               },
               body: JSON.stringify({
                 to: token,
-                title: `Nouvelle Annonce: ${title}`,
+                title: `Annonce: ${title}`,  // Fixed string template syntax
                 body: `Dr.${professorName} a publié une nouvelle annonce`,
-
               })
             });
           } catch (error) {

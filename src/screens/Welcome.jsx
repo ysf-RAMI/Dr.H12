@@ -13,6 +13,7 @@ const Welcome = () => {
   const [isReady, setIsReady] = useState(false);
   const navigation = useNavigation();
   const { expoPushToken } = useNotification();
+  const baseUrl = 'https://doctorh1-kjmev.ondigitalocean.app';
   
   useEffect(() => {
     let isMounted = true;
@@ -30,7 +31,7 @@ const Welcome = () => {
         
         if (tokenSent === null && expoPushToken) {
           try {
-            await axios.post('http://192.168.3.41:8080/api/student/addExpoToken', {
+            await axios.post(`${baseUrl}/api/student/addExpoToken`, {
               expoToken: expoPushToken
             });
             await AsyncStorage.setItem('@push_token_sent', 'true');

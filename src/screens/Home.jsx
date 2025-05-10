@@ -11,6 +11,7 @@ import {
   StatusBar,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { MaterialIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -101,12 +102,16 @@ const Home = () => {
       name: "Hamza HAMOUT",
       role: "Chef de projet",
       image: require("../../assets/team/hamoutimage.jpg"),
+      gmail : "h.hamout@uiz.ac.ma",
+      researchgate:"https://www.researchgate.net/profile/Hamza-Hamout"
     },
     {
       id: 2,
       name: "Youssef RAMI",
       role: "Full Stack Developer",
       image: require("../../assets/team/youssef.jpg"),
+      gmail:"yousseframi012@gmail.com",
+      linkedin:"https://www.linkedin.com/in/youssef-rami/"
     },
   ];
 
@@ -243,6 +248,32 @@ const Home = () => {
                 <Image source={item.image} style={styles.teamMemberImage} />
                 <Text style={styles.teamMemberName}>{item.name}</Text>
                 <Text style={styles.teamMemberRole}>{item.role}</Text>
+                <View style={styles.teamMemberSocial}>
+                  {item.gmail && (
+                    <TouchableOpacity 
+                      style={styles.teamSocialButton}
+                      onPress={() => Linking.openURL(`mailto:${item.gmail}`)}
+                    >
+                      <MaterialIcons name="email" size={18}   color="#666"/>
+                    </TouchableOpacity>
+                  )}
+                  {item.linkedin && (
+                    <TouchableOpacity 
+                      style={styles.teamSocialButton}
+                      onPress={() => Linking.openURL(item.linkedin)}
+                    >
+                      <FontAwesome5 name="linkedin" size={18}  color="#666"/>
+                    </TouchableOpacity>
+                  )}
+                  {item.researchgate && (
+                    <TouchableOpacity 
+                      style={styles.teamSocialButton}
+                      onPress={() => Linking.openURL(item.researchgate)}
+                    >
+                      <FontAwesome5 name="researchgate" size={18}  color="#666"  />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             )}
           />
@@ -252,15 +283,6 @@ const Home = () => {
         <View style={styles.footer}>
           <Text style={styles.footerText}>© 2025 Dr. H1. Tous droits réservés.</Text>
           <View style={styles.socialLinks}>
-            <TouchableOpacity style={styles.socialButton}>
-              <FontAwesome5 name="facebook" size={20} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <FontAwesome5 name="linkedin" size={20} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <FontAwesome5 name="instagram" size={20} color="#666" />
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -490,7 +512,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     marginRight: 12,
-    width: 130,
+    width: 150,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -498,9 +520,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   teamMemberImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     marginBottom: 10,
   },
   teamMemberName: {
@@ -514,6 +536,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     textAlign: "center",
+    marginBottom: 10,
+  },
+  teamMemberSocial: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 5,
+  },
+  teamSocialButton: {
+    marginHorizontal: 8,
+    padding: 5,
   },
   // Footer
   footer: {

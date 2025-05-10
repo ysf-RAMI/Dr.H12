@@ -36,11 +36,13 @@ export default function Hamout() {
   return (
     <View style={styles.container}>
       <View style={styles.imageSection}>
-        <Image
-          source={hamoutimage}
-          style={styles.profileImage}
-          resizeMode="cover"
-        />
+        <View style={styles.imageShadowContainer}>
+          <Image
+            source={hamoutimage}
+            style={styles.profileImage}
+            resizeMode="cover"
+          />
+        </View>
       </View>
       
       {/* Horizontal Menu */}
@@ -106,17 +108,22 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     marginBottom: -1, // Negative margin to pull elements closer
   }, 
-  profileImage: {
-    width: 200,
-    height: 200,
+  imageShadowContainer: {
+    shadowColor: 'white',
+    shadowOffset: { width: 10, height: 11 },
+    shadowOpacity: 1.5,
+    shadowRadius: 100,
+    elevation: 23,
     borderRadius: 100,
-    borderWidth: 4,
+    backgroundColor: 'transparent', // Add this
+    padding: 2, // Add this
+  },
+  profileImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 100,
+    borderWidth: 2,
     borderColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 10, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    marginBottom: 10, // Negative margin to pull elements closer
   },
   menuContainer: {
     backgroundColor: '#01162e',
@@ -128,8 +135,8 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
     height: 30, // Fixed 
-    marginTop: 0,
-    marginBottom: 0,
+    marginTop: 5,
+    marginBottom: 5, // Added margin bottom here
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

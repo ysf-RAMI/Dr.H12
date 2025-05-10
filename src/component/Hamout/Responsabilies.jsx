@@ -1,23 +1,13 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, Animated, Dimensions } from "react-native";
-import { Text, Surface, Chip } from "react-native-paper";
+// Remove animation-related imports
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from "react-native";
+import { Text, Chip } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 
 export default function Responsabilies() {
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Animation for fade-in effect
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-    
-    setLoaded(true);
-    
     const handleDimensionChange = ({ window }) => {
       setScreenWidth(window.width);
     };
@@ -102,54 +92,20 @@ export default function Responsabilies() {
 
   const ResponsibilityCard = ({ item, index }) => {
     const [pressed, setPressed] = useState(false);
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    const itemFadeAnim = useRef(new Animated.Value(0)).current;
-    
-    useEffect(() => {
-      // Staggered animation for each card
-      Animated.timing(itemFadeAnim, {
-        toValue: 1,
-        duration: 800,
-        delay: index * 150,
-        useNativeDriver: true,
-      }).start();
-    }, []);
     
     const handlePress = () => {
-      setPressed(true);
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.03,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        })
-      ]).start(() => setPressed(false));
+      setPressed(!pressed);
     };
     
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={handlePress}
         activeOpacity={0.9}
         style={styles.cardContainer}
       >
-        <Animated.View 
+        <View 
           style={[
             styles.card,
-            {
-              transform: [
-                { scale: scaleAnim },
-                { translateY: itemFadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }) }
-              ],
-              opacity: itemFadeAnim,
-            },
             pressed && styles.cardPressed
           ]}
         >
@@ -177,7 +133,7 @@ export default function Responsabilies() {
             </View>
             <Text style={styles.periodText}>{item.period}</Text>
           </View>
-        </Animated.View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -186,22 +142,9 @@ export default function Responsabilies() {
     <ScrollView style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.contentContainer}>
-          <Animated.Text 
-            style={[
-              styles.sectionTitle,
-              {
-                opacity: fadeAnim,
-                transform: [{
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0],
-                  })
-                }]
-              }
-            ]}
-          >
+          <Text style={styles.sectionTitle}>
             Responsabilités Pédagogiques & Tâches Administratives
-          </Animated.Text>
+          </Text>
           
           <View style={styles.cardsGrid}>
             {responsibilities.map((responsibility, index) => (

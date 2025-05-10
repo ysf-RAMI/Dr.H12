@@ -5,7 +5,7 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
-  Dimensions,
+  Text
 } from 'react-native';
 import {
   Card,
@@ -14,7 +14,6 @@ import {
   ProgressBar,
   Chip,
   useTheme,
-  Text,
 } from 'react-native-paper';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -48,73 +47,6 @@ const DashboardScreen = () => {
     nbrVideo: 0,
   };
 
-  // Memoized data processing
-  const processData = useCallback((data) => {
-    return {
-      ...data,
-      resourcesPieData: [
-        {
-          name: 'Cours',
-          count: data?.nbrCours || 0,
-          color: '#4CAF50',
-        },
-        {
-          name: 'TD',
-          count: data?.nbrTd || 0,
-          color: '#2196F3',
-        },
-        {
-          name: 'TP',
-          count: data?.nbrTp || 0,
-          color: '#FF9800',
-        },
-        {
-          name: 'Examens',
-          count: data?.nbrExam || 0,
-          color: '#F44336',
-        },
-      ].filter(item => item.count > 0),
-      filesPieData: [
-        {
-          name: 'Fichiers',
-          count: data?.nbrFichier || 0,
-          color: '#9C27B0',
-        },
-        {
-          name: 'Vidéos',
-          count: data?.nbrVideo || 0,
-          color: '#009688',
-        },
-      ].filter(item => item.count > 0),
-      statsCards: [
-        {
-          title: 'Modules',
-          value: data?.nbrModule || 0,
-          icon: 'book',
-          color: '#003366',
-        },
-        {
-          title: 'Ressources',
-          value: data?.nbrResources || 0,
-          icon: 'file-document',
-          color: '#01162e',
-        },
-        {
-          title: 'Cours',
-          value: data?.nbrCours || 0,
-          icon: 'school',
-          color: '#003366',
-        },
-        {
-          title: 'Annonces',
-          value: data?.nbrAnnonce || 0,
-          icon: 'bullhorn',
-          color: '#01162e',
-        },
-      ]
-    };
-  }, []);
-
   // Load dashboard data
   const loadData = useCallback(async () => {
     try {
@@ -132,16 +64,16 @@ const DashboardScreen = () => {
         }
       );
 
-      setDashboardData(processData(response.data));
-    } catch (err) {
-      console.error('Dashboard load error:', err);
+      setDashboardData(response.data);
+    } catch (error) {
+      console.error('Dashboard load error:', error);
       setError('Failed to load dashboard data');
-      setDashboardData(processData(FALLBACK_DATA));
+      setDashboardData(FALLBACK_DATA);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [processData]);
+  }, []);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -160,7 +92,8 @@ const DashboardScreen = () => {
   if (loading && !dashboardData) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ActivityIndicator size="large" color="#01162e" />
+        <Text style={{ marginTop: 10, color: '#01162e' }}>Chargement...</Text>
       </View>
     );
   }
@@ -168,17 +101,17 @@ const DashboardScreen = () => {
   // Error state
   if (error && !dashboardData) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={styles.loaderContainer}>
         <MaterialCommunityIcons
           name="alert-circle"
           size={48}
-          color={theme.colors.error}
+          color="#F44336"
         />
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={{ marginTop: 10, color: '#01162e' }}>{error}</Text>
         <Chip
           icon="reload"
           onPress={loadData}
-          style={{ marginTop: 16, backgroundColor: theme.colors.primary }}
+          style={{ marginTop: 16, backgroundColor: '#01162e' }}
           textStyle={{ color: 'white' }}
         >
           Réessayer
@@ -187,48 +120,90 @@ const DashboardScreen = () => {
     );
   }
 
-  // Helper component for progress bars
-  const ProgressChart = ({ data, title, icon }) => {
-    const maxValue = Math.max(...data.map(item => item.count), 1);
-    
-    return (
-      <Card style={styles.chartCard}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons
-              name={icon}
-              size={24}
-              color={theme.colors.primary}
-            />
-            <Text style={styles.sectionTitle}>{title}</Text>
-          </View>
+  // Stats cards data
+  const statsCards = [
+    {
+      title: "Modules",
+      value: dashboardData?.nbrModule || 0,
+      icon: 'book-open-variant',
+      color: '#003366'
+    },
+    {
+      title: "Ressources",
+      value: dashboardData?.nbrResources || 0,
+      icon: 'bookmark-multiple',
+      color: '#01162e'
+    },
+    {
+      title: "Cours",
+      value: dashboardData?.nbrCours || 0,
+      icon: 'book',
+      color: '#003366'
+    },
+    {
+      title: "Annonces",
+      value: dashboardData?.nbrAnnonce || 0,
+      icon: 'bullhorn',
+      color: '#01162e'
+    }
+  ];
 
-          {data.map((item, index) => (
-            <View key={index} style={styles.statBar}>
-              <View style={styles.statBarHeader}>
-                <Text style={styles.statLabel}>{item.name}</Text>
-                <Text style={styles.statValue}>{item.count}</Text>
-              </View>
-              <ProgressBar
-                progress={item.count / maxValue}
-                color={item.color}
-                style={styles.progressBar}
-              />
-            </View>
-          ))}
-        </Card.Content>
-      </Card>
-    );
-  };
+  // Resource items data
+  const resourceItems = [
+    {
+      icon: 'book',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrCours || 0,
+      label: "Cours",
+      color: "#4CAF50"
+    },
+    {
+      icon: 'file-document',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrTd || 0,
+      label: "TD",
+      color: "#2196F3"
+    },
+    {
+      icon: 'flask',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrTp || 0,
+      label: "TP",
+      color: "#FF9800"
+    },
+    {
+      icon: 'file-chart',
+      iconComponent: MaterialCommunityIcons,
+      value: dashboardData?.nbrExam || 0,
+      label: "Examens",
+      color: "#F44336"
+    }
+  ];
 
-  // Stats card component
+  // File type items
+  const fileTypeItems = [
+    {
+      icon: 'file',
+      value: dashboardData?.nbrFichier || 0,
+      label: "Fichiers",
+      color: "#9C27B0"
+    },
+    {
+      icon: 'video',
+      value: dashboardData?.nbrVideo || 0,
+      label: "Vidéos",
+      color: "#009688"
+    }
+  ];
+
+  // Reusable components
   const StatCard = ({ title, value, icon, color }) => (
     <Card style={[styles.statCard, { backgroundColor: color }]}>
       <Card.Content style={styles.statCardContent}>
-        <Avatar.Icon
+        <Avatar.Icon 
           icon={icon}
           size={40}
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.65)' }}
         />
         <View style={styles.statTextContainer}>
           <Text style={styles.statTitle}>{title}</Text>
@@ -238,33 +213,65 @@ const DashboardScreen = () => {
     </Card>
   );
 
-  // Resource item component
-  const ResourceItem = ({ icon, value, label, iconColor }) => (
+  const ResourceItem = ({ icon, iconComponent: IconComponent, value, label, color }) => (
     <View style={styles.resourceItem}>
-      {React.createElement(icon, { size: 24, color: iconColor })}
+      <IconComponent name={icon} size={20} color={color} />
       <Text style={styles.resourceText}>{label}: {value}</Text>
     </View>
   );
 
+  const ProgressChart = ({ title, icon, items }) => (
+    <Card style={styles.chartCard}>
+      <Card.Content>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={24} 
+            color="#01162e" 
+          />
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        
+        {items.map((item, index) => (
+          <View key={index} style={styles.progressItem}>
+            <View style={styles.progressHeader}>
+              <MaterialCommunityIcons 
+                name={item.icon} 
+                size={20} 
+                color={item.color} 
+              />
+              <Text style={styles.progressLabel}>{item.label}</Text>
+              <Text style={styles.progressValue}>{item.value}</Text>
+            </View>
+            <ProgressBar 
+              progress={item.value / Math.max(...items.map(i => i.value), 1)}
+              color={item.color}
+              style={styles.progressBar}
+            />
+          </View>
+        ))}
+      </Card.Content>
+    </Card>
+  );
+
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={styles.container}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={handleRefresh}
-          colors={[theme.colors.primary]}
+          colors={['#01162e']}
         />
       }
     >
-      {/* Header with professor info */}
-      <Card style={[styles.headerCard, { backgroundColor: '#003366' }]}>
+      {/* Header Card */}
+      <Card style={[styles.headerCard, { backgroundColor: '#01162e' }]}>
         <Card.Content style={styles.headerContent}>
           <Avatar.Text
             size={64}
             label="P"
             style={styles.avatar}
-            labelStyle={styles.avatarLabel}
           />
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Tableau de Bord Professeur</Text>
@@ -275,94 +282,62 @@ const DashboardScreen = () => {
         </Card.Content>
       </Card>
 
-      {/* Stats Cards */}
-      <View style={{flex : 1,flexDirection:"row",justifyContent:'center',alignItems:'center'}}>
-      <MaterialCommunityIcons
+      <View style={{flex: 1, flexDirection: "row", justifyContent: 'center', alignItems: 'center'}}> 
+        <MaterialCommunityIcons
           name="chevron-left"
           size={24}
           color="black"
         />
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.statsContainer}
-      >
-        {dashboardData.statsCards.map((stat, index) => (
-          <StatCard key={index} {...stat} />
-        ))}
-      </ScrollView> 
-       <MaterialCommunityIcons
+        {/* Stats Cards */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.statsContainer}
+        >
+          {statsCards.map((stat, index) => (
+            <StatCard key={index} {...stat} />
+          ))}
+        </ScrollView>
+        <MaterialCommunityIcons
           name="chevron-right"
           size={24}
           color="black"
         />
       </View>
 
-      {/* Resources Overview */}
+      {/* Resources Summary */}
       <Card style={styles.sectionCard}>
         <Card.Content>
           <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons
-              name="bookshelf"
-              size={24}
-              color={theme.colors.primary}
+            <MaterialCommunityIcons 
+              name="bookshelf" 
+              size={24} 
+              color="#01162e" 
             />
             <Text style={styles.sectionTitle}>Aperçu des Ressources</Text>
           </View>
-
+          
           <View style={styles.resourceSummary}>
-            <View style={styles.resourceTotal}>
-              <Text style={styles.totalText}>
-                Total: {dashboardData.nbrResources || 0}
-              </Text>
-              <View style={styles.chipContainer}>
-                <Chip
-                  icon="file"
-                  style={[styles.chip, { backgroundColor: '#01162e' }]}
-                  textStyle={styles.chipText}
-                >
-                  Fichiers: {dashboardData.nbrFichier || 0}
-                </Chip>
-                <Chip
-                  icon="video"
-                  style={[styles.chip, { backgroundColor: '#4080be' }]}
-                  textStyle={styles.chipText}
-                >
-                  Vidéos: {dashboardData.nbrVideo || 0}
-                </Chip>
-              </View>
-            </View>
+            {resourceItems.map((item, index) => (
+              <ResourceItem key={index} {...item} />
+            ))}
+          </View>
 
-            <View style={styles.resourceGrid}>
-              <ResourceItem 
-                icon={MaterialCommunityIcons} 
-                name="book" 
-                value={dashboardData.nbrCours} 
-                label="Cours" 
-                iconColor="#4CAF50" 
-              />
-              <ResourceItem 
-                icon={Feather} 
-                name="file-text" 
-                value={dashboardData.nbrTd} 
-                label="TD" 
-                iconColor="#2196F3" 
-              />
-              <ResourceItem 
-                icon={Ionicons} 
-                name="flask" 
-                value={dashboardData.nbrTp} 
-                label="TP" 
-                iconColor="#FF9800" 
-              />
-              <ResourceItem 
-                icon={MaterialIcons} 
-                name="assignment" 
-                value={dashboardData.nbrExam} 
-                label="Examens" 
-                iconColor="#F44336" 
-              />
+          <View style={styles.totalResources}>
+            <Text style={styles.totalText}>
+              Total des Ressources: {dashboardData?.nbrResources || 0}
+            </Text>
+            <View style={styles.chipContainer}>
+              {fileTypeItems.map((item, index) => (
+                <Chip
+                  key={index}
+                  icon={item.icon}
+                  style={[styles.chip, { backgroundColor: item.color }]}
+                  textStyle={styles.chipText}
+                >
+                  {item.label}: {item.value}
+                </Chip>
+              ))}
             </View>
           </View>
         </Card.Content>
@@ -371,14 +346,14 @@ const DashboardScreen = () => {
       {/* Charts Section */}
       <View style={styles.chartsContainer}>
         <ProgressChart 
-          data={dashboardData.resourcesPieData} 
-          title="Contenu Éducatif" 
+          title="Distribution des Ressources" 
           icon="chart-pie" 
+          items={resourceItems}
         />
         <ProgressChart 
-          data={dashboardData.filesPieData} 
-          title="Types de Fichiers" 
+          title="Types de Ressources" 
           icon="file-chart" 
+          items={fileTypeItems}
         />
       </View>
 
@@ -386,14 +361,14 @@ const DashboardScreen = () => {
       <Card style={styles.sectionCard}>
         <Card.Content>
           <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons
-              name="chart-bar"
-              size={24}
-              color={theme.colors.primary}
+            <MaterialCommunityIcons 
+              name="chart-bar" 
+              size={24} 
+              color="#01162e" 
             />
-            <Text style={styles.sectionTitle}>Statistiques Détailées</Text>
+            <Text style={styles.sectionTitle}>Statistiques Détaillées</Text>
           </View>
-
+          
           <DataTable>
             <DataTable.Header>
               <DataTable.Title>Catégorie</DataTable.Title>
@@ -402,22 +377,32 @@ const DashboardScreen = () => {
 
             <DataTable.Row>
               <DataTable.Cell>Modules</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrModule}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrModule || 0}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>Cours</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrCours}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrCours || 0}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>TD</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrTd}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrTd || 0}</DataTable.Cell>
             </DataTable.Row>
 
             <DataTable.Row>
               <DataTable.Cell>TP</DataTable.Cell>
-              <DataTable.Cell numeric>{dashboardData.nbrTp}</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrTp || 0}</DataTable.Cell>
+            </DataTable.Row>
+
+            <DataTable.Row>
+              <DataTable.Cell>Examens</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrExam || 0}</DataTable.Cell>
+            </DataTable.Row>
+
+            <DataTable.Row>
+              <DataTable.Cell>Ressources</DataTable.Cell>
+              <DataTable.Cell numeric>{dashboardData?.nbrResources || 0}</DataTable.Cell>
             </DataTable.Row>
           </DataTable>
         </Card.Content>
@@ -430,52 +415,36 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#f8f9fa'
   },
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    marginTop: 16,
-    fontSize: 16,
-    textAlign: 'center',
-  },
   headerCard: {
     marginBottom: 20,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
   },
   avatar: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginRight: 16,
-  },
-  avatarLabel: {
-    color: 'white',
-    fontSize: 24,
   },
   headerText: {
-    flex: 1,
+    marginLeft: 16,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
   },
   statsContainer: {
     marginBottom: 20,
@@ -483,7 +452,7 @@ const styles = StyleSheet.create({
   statCard: {
     width: 160,
     marginRight: 12,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   statCardContent: {
     flexDirection: 'row',
@@ -505,7 +474,7 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginBottom: 20,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -516,34 +485,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 10,
+    color: '#01162e'
   },
   resourceSummary: {
-    marginBottom: 16,
-  },
-  resourceTotal: {
-    marginBottom: 16,
-  },
-  totalText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-  },
-  chip: {
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  chipText: {
-    color: 'white',
-  },
-  resourceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginBottom: 16,
   },
   resourceItem: {
     width: '48%',
@@ -558,31 +506,53 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 14,
   },
+  totalResources: {
+    marginTop: 16,
+  },
+  totalText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#01162e'
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  chip: {
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipText: {
+    color: 'white',
+  },
   chartsContainer: {
     marginBottom: 20,
   },
   chartCard: {
     marginBottom: 15,
-    borderRadius: 12,
+    borderRadius: 16,
   },
-  statBar: {
+  progressItem: {
     marginBottom: 12,
   },
-  statBarHeader: {
+  progressHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  statLabel: {
+  progressLabel: {
+    marginLeft: 8,
     fontSize: 14,
+    flex: 1,
   },
-  statValue: {
+  progressValue: {
     fontSize: 14,
     fontWeight: 'bold',
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
   },
 });
 

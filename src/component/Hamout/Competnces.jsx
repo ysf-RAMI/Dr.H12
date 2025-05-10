@@ -29,14 +29,13 @@ export default function CompetencesEtLangues() {
     },
     {
       title: "Langues",
-      ref: languagesScrollViewRef,
       items: [
         { name: "Arabe", level: "Maternel" },
         { name: "Français", level: "Bon niveau" },
         { name: "Anglais", level: "Bon niveau" }
       ],
-      scrollSpeed: 1.3,
-      width: 600
+      // Remove ref and scroll properties for languages
+      width: 100,
     }
   ];
 
@@ -62,7 +61,8 @@ export default function CompetencesEtLangues() {
     
     // Function to animate scrolling for a specific category
     const animateScroll = (index) => {
-      if (!categories[index].ref.current) return;
+      // Skip languages section as it doesn't have a ref
+      if (!categories[index].ref?.current) return;
       
       // Increment position based on scroll speed
       positions[index] += categories[index].scrollSpeed;
@@ -81,8 +81,11 @@ export default function CompetencesEtLangues() {
       animationFrames[index] = requestAnimationFrame(() => animateScroll(index));
     };
     
-    categories.forEach((_, index) => {
-      animateScroll(index);
+    categories.forEach((category, index) => {
+      // Only animate categories that have a ref
+      if (category.ref) {
+        animateScroll(index);
+      }
     });
     
     return () => {
@@ -110,6 +113,23 @@ export default function CompetencesEtLangues() {
 
   // Render a category section with its ScrollView
   const CategorySection = ({ category, index }) => {
+    if (category.title === "Langues") {
+      return (
+        <View style={styles.languageContainer}>
+          <Text style={styles.categoryTitle}>{category.title}</Text>
+          <View style={styles.languageItemsContainer}>
+            {category.items.map((item) => (
+              <SkillItem 
+                key={item.name} 
+                name={item.name} 
+                Icon={iconComponents[item.name]} 
+                level={item.level}
+              />
+            ))}
+          </View>
+        </View>
+      );
+    }
     return (
       <View>
         
@@ -343,6 +363,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     alignItems: 'center',
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 26,
@@ -354,6 +375,7 @@ const styles = StyleSheet.create({
   categorySection: {
     width: '100%',
     marginBottom: 20,
+    
   },
   categoryTitle: {
     fontSize: 18,
@@ -431,5 +453,15 @@ const styles = StyleSheet.create({
     height: 1,
     marginVertical: 16,
     alignSelf: 'center',
+  },
+  languageContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  languageItemsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
   },
 });

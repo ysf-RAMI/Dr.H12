@@ -119,7 +119,6 @@ const Educational = () => {
       <View style={styles.timeline}>
         {timelineData.map((item, index) => renderTimelineItem(item, index))}
       </View>
-     
     </ScrollView>
   );
 };

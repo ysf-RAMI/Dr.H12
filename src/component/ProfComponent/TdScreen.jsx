@@ -286,7 +286,7 @@ const TdScreen = () => {
       if (dialogType === 'add') {
         // Get all tokens for notification - Updated to use baseUrl
         const tokensResponse = await axios.get(
-          `http://192.168.3.41:8080/api/student/getTokens`
+           `${baseUrl}/api/student/getTokens`
         );
         
         const tokens = tokensResponse.data;

@@ -6,19 +6,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 export default function PublicationsJournaux() {
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
   const scrollViewRef = useRef(null);
-  const [loaded, setLoaded] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // Remove animation-related states
+  const [loaded, setLoaded] = useState(true); // Set to true since we won't use animation
 
   useEffect(() => {
-    // Animation for fade-in effect
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-    
-    setLoaded(true);
-    
     const handleDimensionChange = ({ window }) => {
       setScreenWidth(window.width);
     };
@@ -90,22 +81,9 @@ export default function PublicationsJournaux() {
 
   const PublicationCard = ({ publication, index }) => {
     const [pressed, setPressed] = useState(false);
-    const scaleAnim = useRef(new Animated.Value(1)).current;
     
     const handlePress = () => {
-      setPressed(true);
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.05,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        })
-      ]).start(() => setPressed(false));
+      setPressed(!pressed);
     };
     
     return (
@@ -113,19 +91,9 @@ export default function PublicationsJournaux() {
         onPress={handlePress}
         activeOpacity={0.9}
       >
-        <Animated.View 
+        <View 
           style={[
             styles.publicationCard,
-            {
-              transform: [
-                { scale: scaleAnim },
-                { translateY: loaded ? 0 : 50 }
-              ],
-              opacity: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 1],
-              }),
-            },
             pressed && styles.cardPressed
           ]}
         >
@@ -152,7 +120,7 @@ export default function PublicationsJournaux() {
               {publication.authors}
             </Text>
           </View>
-        </Animated.View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -161,39 +129,13 @@ export default function PublicationsJournaux() {
     <ScrollView style={styles.container}>
       <View style={styles.innerContainer}>
         <View style={styles.contentContainer}>
-          <Animated.Text 
-            style={[
-              styles.sectionTitle,
-              {
-                opacity: fadeAnim,
-                transform: [{
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0],
-                  })
-                }]
-              }
-            ]}
-          >
+          <Text style={styles.sectionTitle}>
             Publications Journaux
-          </Animated.Text>
+          </Text>
           
-          <Animated.Text 
-            style={[
-              styles.sectionSubtitle,
-              {
-                opacity: fadeAnim,
-                transform: [{
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-15, 0],
-                  })
-                }]
-              }
-            ]}
-          >
+          <Text style={styles.sectionSubtitle}>
             Journal articles in the field of computer vision and signal processing.
-          </Animated.Text>
+          </Text>
           
           <View style={styles.publicationsContainer}>
             {publications.map((publication, index) => (

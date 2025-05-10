@@ -107,7 +107,7 @@ const Login = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : null}
       style={[styles.container, { backgroundColor: themeColors.background }]}
     >
-      <StatusBar barStyle="dark-content" />
+     
       <ScrollView 
         contentContainerStyle={styles.scrollContainer}
         refreshControl={
@@ -193,6 +193,8 @@ const Login = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
   },
   scrollContainer: {
     flexGrow: 1,
