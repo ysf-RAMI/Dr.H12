@@ -694,14 +694,13 @@ const CoursScreen = () => {
               </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
-            <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+            <Dialog.Actions  style={{color:"white",padding:1}}>
+              <Button onPress={closeDialog}textColor={themeColors.textLight}>Cancel</Button>
               <Button 
                 onPress={handleSaveCourse} 
-                mode="contained"
+                mode="text"
                 loading={isProcessing}
                 disabled={isProcessing}
-                buttonColor={themeColors.primary}
               >
                 {dialogType === 'add' ? 'Add Course' : 'Save Changes'}
               </Button>
@@ -847,30 +846,25 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   uploadButton: {
-    marginBottom: 8,
     borderColor: themeColors.accent,
     borderRadius: 8,
-  },
-  typeSection: {
-    marginBottom: 16,
   },
   typeButtons: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
   },
   typeButton: {
     flex: 1,
     borderRadius: 8,
   },
   uploadSection: {
-    gap: 8,
+    gap: 1,
   },
   videoSection: {
     gap: 4,
   },
   progressContainer: {
-    marginTop: 8,
+    marginTop:8,
     marginBottom: 8,
   },
   progressText: {
@@ -885,15 +879,14 @@ const styles = StyleSheet.create({
   divider: {
     backgroundColor: themeColors.background,
     height: 1,
-    marginVertical: 8,
   },
   dialog: {
     backgroundColor: themeColors.surface,
     borderRadius: 12,
   },
   dialogContent: {
-    padding: 16,
-    gap: 16,
+    padding: 6,
+    gap: 6,
   },
   currentFile: {
     color: themeColors.secondary,
@@ -902,7 +895,7 @@ const styles = StyleSheet.create({
   },
   courseName: {
     fontWeight: 'bold',
-    marginVertical: 8,
+    marginVertical: 1,
     color: themeColors.primary,
   },
   deleteWarning: {
