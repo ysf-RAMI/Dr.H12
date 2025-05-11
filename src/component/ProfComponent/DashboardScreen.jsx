@@ -107,7 +107,7 @@ const DashboardScreen = () => {
           size={48}
           color="#F44336"
         />
-        <Text style={{ marginTop: 10, color: '#01162e' }}>{error}</Text>
+        <Text style={{ marginTop: 10, color: '#01162e' }}>Erreur de chargement des données</Text>
         <Chip
           icon="reload"
           onPress={loadData}

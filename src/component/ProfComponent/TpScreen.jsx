@@ -51,12 +51,12 @@ const TpScreen = () => {
         const storedProfId = await AsyncStorage.getItem('profId');
         
         if (!authData || !storedProfId) {
-          throw new Error('Authentication data not found');
+          throw new Error('Données d\'authentification non trouvées');
         }
 
         const parsedAuth = JSON.parse(authData);
         if (!parsedAuth.token) {
-          throw new Error('Token not found');
+          throw new Error('Token non trouvé');
         }
 
         setToken(parsedAuth.token);
@@ -65,8 +65,8 @@ const TpScreen = () => {
         await fetchTps(parsedAuth.token, storedProfId);
         await fetchModules(parsedAuth.token, storedProfId);
       } catch (error) {
-        console.error('Error loading data:', error);
-        Alert.alert('Error', 'Failed to load data. Please login again.');
+        console.error('Erreur de chargement des données:', error);
+        Alert.alert('Erreur', 'Échec du chargement des données. Veuillez vous reconnecter.');
       } finally {
         setLoading(false);
       }
@@ -89,11 +89,11 @@ const TpScreen = () => {
       );
       setTps(response.data.filter(r => r.type === "TP"));
     } catch (error) {
-      console.error('Error fetching TPs:', error);
+      console.error('Erreur lors de la récupération des TPs:', error);
       if (error.response?.status === 403) {
-        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.');
       } else {
-        Alert.alert('Error', 'Failed to fetch TPs. Please try again later.');
+        Alert.alert('Erreur', 'Échec de la récupération des TPs. Veuillez réessayer plus tard.');
       }
     }
   };
@@ -112,11 +112,11 @@ const TpScreen = () => {
       );
       setModules(response.data);
     } catch (error) {
-      console.error('Error fetching modules:', error);
+      console.error('Erreur lors de la récupération des modules:', error);
       if (error.response?.status === 403) {
-        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.');
       } else {
-        Alert.alert('Error', 'Failed to fetch modules. Please try again later.');
+        Alert.alert('Erreur', 'Échec de la récupération des modules. Veuillez réessayer plus tard.');
       }
     }
   };
@@ -128,7 +128,7 @@ const TpScreen = () => {
       await fetchTps(token, profId);
       await fetchModules(token, profId);
     } catch (error) {
-      console.error('Error refreshing:', error);
+      console.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
@@ -177,21 +177,22 @@ const TpScreen = () => {
       if (result.assets && result.assets[0]) {
         const file = result.assets[0];
         
+        // File picker error messages
         if (file.size > 50 * 1024 * 1024) {
-          Alert.alert('Error', 'File size should be less than 50MB');
+          Alert.alert('Erreur', 'La taille du fichier doit être inférieure à 50MB');
           return;
         }
         
         if (!file.mimeType || !file.mimeType.includes('pdf')) {
-          Alert.alert('Error', 'Please select a PDF file');
+          Alert.alert('Erreur', 'Veuillez sélectionner un fichier PDF');
           return;
         }
         
         setFormData(prev => ({ ...prev, file }));
       }
     } catch (error) {
-      console.error('Error picking file:', error);
-      Alert.alert('Error', 'Failed to pick file');
+      console.error('Erreur lors de la sélection du fichier:', error);
+      Alert.alert('Erreur', 'Échec de la sélection du fichier');
     }
   };
 
@@ -199,17 +200,17 @@ const TpScreen = () => {
   const validate = () => {
     const newErrors = {};
     
-    if (!formData.name.trim()) newErrors.name = 'TP name is required';
-    if (!formData.module) newErrors.module = 'Module is required';
+    if (!formData.name.trim()) newErrors.name = 'Le nom du TP est requis';
+    if (!formData.module) newErrors.module = 'Le module est requis';
     
     if (formData.type === 'VIDEO') {
       if (!formData.videoUrl.trim()) {
-        newErrors.videoUrl = 'Video URL is required';
+        newErrors.videoUrl = 'L\'URL de la vidéo est requise';
       } else if (!formData.videoUrl.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/)) {
-        newErrors.videoUrl = 'Please enter a valid YouTube URL';
+        newErrors.videoUrl = 'Veuillez entrer une URL YouTube valide';
       }
     } else if (formData.type === 'FICHIER' && !formData.file && !selectedTp?.lien) {
-      newErrors.file = 'PDF file is required';
+      newErrors.file = 'Un fichier PDF est requis';
     }
     
     setErrors(newErrors);
@@ -254,9 +255,6 @@ const TpScreen = () => {
       
       const method = dialogType === 'add' ? 'post' : 'put';
       
-      // Add jwt-decode import at the top
-      
-      // In the saveTp function, after the axios request:
       const response = await axios[method](url, form, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -307,28 +305,28 @@ const TpScreen = () => {
                 })
               });
             } catch (error) {
-              console.error('Error sending notification:', error);
+              console.error('Erreur lors de l\'envoi de la notification:', error);
             }
           }));
         }
       }
 
-      Alert.alert('Success', `TP ${dialogType === 'add' ? 'added' : 'updated'} successfully`);
+      Alert.alert('Succès', `TP ${dialogType === 'add' ? 'ajouté' : 'mis à jour'} avec succès`);
       await fetchTps(token, profId);
       closeDialog();
     } catch (error) {
-      console.error('Error saving TP:', error);
-      let errorMessage = 'Failed to save TP';
+      console.error('Erreur lors de la sauvegarde du TP:', error);
+      let errorMessage = 'Échec de la sauvegarde du TP';
       if (error.response) {
         if (error.response.status === 413) {
-          errorMessage = 'File size is too large (max 50MB)';
+          errorMessage = 'La taille du fichier est trop grande (max 50MB)';
         } else if (error.response.status === 403) {
-          errorMessage = 'Session expired. Please login again.';
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -339,20 +337,20 @@ const TpScreen = () => {
         `${baseUrl}/api/professeur/deleteResource/${selectedTp.id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Alert.alert('Success', 'TP deleted successfully');
+      Alert.alert('Succès', 'TP supprimé avec succès');
       await fetchTps(token, profId);
       closeDialog();
     } catch (error) {
-      console.error('Error deleting TP:', error);
-      let errorMessage = 'Failed to delete TP';
+      console.error('Erreur lors de la suppression du TP:', error);
+      let errorMessage = 'Échec de la suppression du TP';
       if (error.response) {
         if (error.response.status === 403) {
-          errorMessage = 'Session expired. Please login again.';
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -366,7 +364,7 @@ const TpScreen = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={themeColors.primary} />
-        <Text style={{ marginTop: 16, color: themeColors.primary }}>Loading data...</Text>
+        <Text style={{ marginTop: 16, color: themeColors.primary }}>Chargement des données...</Text>
       </View>
     );
   }
@@ -386,7 +384,7 @@ const TpScreen = () => {
           {/* Header */}
           <View style={styles.header}>
             <Searchbar
-              placeholder="Search TPs..."
+              placeholder="Rechercher des TPs..."
               onChangeText={setSearchTerm}
               value={searchTerm}
               style={styles.search}
@@ -399,7 +397,7 @@ const TpScreen = () => {
               buttonColor={themeColors.primary}
               icon="plus"
             >
-              Add
+              Ajouter
             </Button>
           </View>
 
@@ -422,13 +420,13 @@ const TpScreen = () => {
                       }
                     >
                       <Menu.Item 
-                        title="Edit" 
+                        title="Modifier" 
                         leadingIcon="pencil" 
                         onPress={() => openDialog('edit', tp)} 
                       />
                       <Divider />
                       <Menu.Item 
-                        title="Delete" 
+                        title="Supprimer" 
                         leadingIcon="delete" 
                         onPress={() => openDialog('delete', tp)}
                         titleStyle={{ color: themeColors.error }}
@@ -450,13 +448,13 @@ const TpScreen = () => {
                     style={styles.viewButton}
                     textColor={themeColors.accent}
                   >
-                    {tp.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
+                    {tp.dataType === 'VIDEO' ? 'Voir la vidéo' : 'Voir le PDF'}
                   </Button>
                 </Card.Content>
               </Card>
             ))
           ) : (
-            <Text style={styles.emptyText}>No TPs found</Text>
+            <Text style={styles.emptyText}>Aucun TP trouvé</Text>
           )}
         </ScrollView>
 
@@ -464,13 +462,13 @@ const TpScreen = () => {
         <Portal>
           <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
             <Dialog.Title style={styles.dialogTitle}>
-              {dialogType === 'add' ? 'Add New TP' : 'Edit TP'}
+              {dialogType === 'add' ? 'Ajouter un nouveau TP' : 'Modifier le TP'}
             </Dialog.Title>
             <Divider style={styles.divider} />
             <Dialog.ScrollArea>
               <View style={styles.dialogContent}>
                 <TextInput
-                  label="TP Name"
+                  label="Nom du TP"
                   defaultValue={formData.name || ''}
                   onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
                   style={styles.input}
@@ -490,7 +488,7 @@ const TpScreen = () => {
                 />
                 
                 <View style={styles.typeSection}>
-                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <Text style={styles.inputLabel}>Type de ressource</Text>
                   <View style={styles.typeButtons}>
                     <Button
                       mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
@@ -510,7 +508,7 @@ const TpScreen = () => {
                       buttonColor={formData.type === 'VIDEO' ? themeColors.accent : undefined}
                       textColor={formData.type === 'VIDEO' ? themeColors.surface : themeColors.accent}
                     >
-                      Video
+                      Vidéo
                     </Button>
                   </View>
                 </View>
@@ -524,15 +522,15 @@ const TpScreen = () => {
                       style={styles.uploadButton}
                       textColor={themeColors.accent}
                     >
-                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                      {formData.file ? `Sélectionné: ${formData.file.name}` : 'Téléverser PDF'}
                     </Button>
                     {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
                     {selectedTp?.lien && !formData.file && (
-                      <Text style={styles.currentFile}>You should upload file again</Text>
+                      <Text style={styles.currentFile}>Vous devez téléverser le fichier à nouveau</Text>
                     )}
                     {uploadProgress > 0 && (
                       <View style={styles.progressContainer}>
-                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <Text style={styles.progressText}>Téléversement: {uploadProgress}%</Text>
                         <ProgressBar 
                           progress={uploadProgress / 100} 
                           color={themeColors.accent}
@@ -544,7 +542,7 @@ const TpScreen = () => {
                 ) : (
                   <View style={styles.videoSection}>
                     <TextInput
-                      label="YouTube URL"
+                      label="URL YouTube"
                       defaultValue={formData.videoUrl || ''}
                       onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
                       style={styles.input}
@@ -555,14 +553,14 @@ const TpScreen = () => {
                       activeOutlineColor={themeColors.accent}
                     />
                     {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
-                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                    <HelperText type="info" style={styles.infoText}>Exemple: https://www.youtube.com/watch?v=videoId</HelperText>
                   </View>
                 )}
               </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button 
                 onPress={saveTp} 
                 mode="contained"
@@ -570,23 +568,23 @@ const TpScreen = () => {
                 disabled={uploadProgress > 0 && uploadProgress < 100}
                 buttonColor={themeColors.primary}
               >
-                {dialogType === 'add' ? 'Add TP' : 'Save Changes'}
+                {dialogType === 'add' ? 'Ajouter TP' : 'Enregistrer'}
               </Button>
             </Dialog.Actions>
           </Dialog>
           
           {/* Delete Dialog */}
           <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
-            <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
+            <Dialog.Title style={styles.dialogTitle}>Confirmer la suppression</Dialog.Title>
             <Dialog.Content>
-              <Text>Are you sure you want to delete this TP?</Text>
+              <Text>Êtes-vous sûr de vouloir supprimer ce TP?</Text>
               <Text style={styles.tpName}>{selectedTp?.nom}</Text>
-              <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
+              <Text style={styles.deleteWarning}>Cette action est irréversible.</Text>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button onPress={deleteTp} mode="contained" buttonColor={themeColors.error}>
-                Delete
+                Supprimer
               </Button>
             </Dialog.Actions>
           </Dialog>
@@ -619,7 +617,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
         onPress={() => setVisible(true)}
       >
         <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
-          {value || `Select ${label}`}
+          {value || `Sélectionner ${label}`}
         </Text>
         <IconButton icon="chevron-down" size={20} iconColor={themeColors.textLight} />
       </TouchableOpacity>
@@ -630,7 +628,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
       
       <Portal>
         <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
+          <Dialog.Title style={styles.dialogTitle}>Sélectionner {label}</Dialog.Title>
           <Dialog.ScrollArea style={styles.dialogScrollArea}>
             <ScrollView>
               {items.map((item, index) => (
@@ -653,7 +651,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
             </ScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions>
-            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Cancel</Button>
+            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Annuler</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

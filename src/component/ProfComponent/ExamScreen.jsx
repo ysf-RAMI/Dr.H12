@@ -51,12 +51,12 @@ const ExamScreen = () => {
         const storedProfId = await AsyncStorage.getItem('profId');
         
         if (!authData || !storedProfId) {
-          throw new Error('Authentication data not found');
+          throw new Error('Données d\'authentification introuvables');
         }
 
         const parsedAuth = JSON.parse(authData);
         if (!parsedAuth.token) {
-          throw new Error('Token not found');
+          throw new Error('Jeton introuvable');
         }
 
         setToken(parsedAuth.token);
@@ -65,8 +65,8 @@ const ExamScreen = () => {
         await fetchExams(parsedAuth.token, storedProfId);
         await fetchModules(parsedAuth.token, storedProfId);
       } catch (error) {
-        console.error('Error loading data:', error);
-        Alert.alert('Error', 'Failed to load data. Please login again.');
+        console.error('Erreur lors du chargement des données:', error);
+        Alert.alert('Erreur', 'Échec du chargement des données. Veuillez vous reconnecter.');
       } finally {
         setLoading(false);
       }
@@ -89,11 +89,11 @@ const ExamScreen = () => {
       );
       setExams(response.data.filter(r => r.type === "EXAM"));
     } catch (error) {
-      console.error('Error fetching exams:', error);
+      console.error('Erreur lors de la récupération des examens:', error);
       if (error.response?.status === 403) {
-        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        Alert.alert('Session Expirée', 'Votre session a expiré. Veuillez vous reconnecter.');
       } else {
-        Alert.alert('Error', 'Failed to fetch exams. Please try again later.');
+        Alert.alert('Erreur', 'Échec de la récupération des examens. Veuillez réessayer plus tard.');
       }
     }
   };
@@ -112,11 +112,11 @@ const ExamScreen = () => {
       );
       setModules(response.data);
     } catch (error) {
-      console.error('Error fetching modules:', error);
+      console.error('Erreur lors de la récupération des modules:', error);
       if (error.response?.status === 403) {
-        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        Alert.alert('Session Expirée', 'Votre session a expiré. Veuillez vous reconnecter.');
       } else {
-        Alert.alert('Error', 'Failed to fetch modules. Please try again later.');
+        Alert.alert('Erreur', 'Échec de la récupération des modules. Veuillez réessayer plus tard.');
       }
     }
   };
@@ -128,7 +128,7 @@ const ExamScreen = () => {
       await fetchExams(token, profId);
       await fetchModules(token, profId);
     } catch (error) {
-      console.error('Error refreshing:', error);
+      console.error('Erreur lors de l\'actualisation:', error);
     } finally {
       setRefreshing(false);
     }
@@ -178,20 +178,20 @@ const ExamScreen = () => {
         const file = result.assets[0];
         
         if (file.size > 50 * 1024 * 1024) {
-          Alert.alert('Error', 'File size should be less than 50MB');
+          Alert.alert('Erreur', 'La taille du fichier doit être inférieure à 50 Mo');
           return;
         }
         
         if (!file.mimeType || !file.mimeType.includes('pdf')) {
-          Alert.alert('Error', 'Please select a PDF file');
+          Alert.alert('Erreur', 'Veuillez sélectionner un fichier PDF');
           return;
         }
         
         setFormData(prev => ({ ...prev, file }));
       }
     } catch (error) {
-      console.error('Error picking file:', error);
-      Alert.alert('Error', 'Failed to pick file');
+      console.error('Erreur lors de la sélection du fichier:', error);
+      Alert.alert('Erreur', 'Échec de la sélection du fichier');
     }
   };
 
@@ -199,17 +199,17 @@ const ExamScreen = () => {
   const validate = () => {
     const newErrors = {};
     
-    if (!formData.name.trim()) newErrors.name = 'Exam name is required';
-    if (!formData.module) newErrors.module = 'Module is required';
+    if (!formData.name.trim()) newErrors.name = 'Le nom de l\'examen est requis';
+    if (!formData.module) newErrors.module = 'Le module est requis';
     
     if (formData.type === 'VIDEO') {
       if (!formData.videoUrl.trim()) {
-        newErrors.videoUrl = 'Video URL is required';
+        newErrors.videoUrl = 'L\'URL de la vidéo est requise';
       } else if (!formData.videoUrl.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/)) {
-        newErrors.videoUrl = 'Please enter a valid YouTube URL';
+        newErrors.videoUrl = 'Veuillez entrer une URL YouTube valide';
       }
     } else if (formData.type === 'FICHIER' && !formData.file && !selectedExam?.lien) {
-      newErrors.file = 'PDF file is required';
+      newErrors.file = 'Un fichier PDF est requis';
     }
     
     setErrors(newErrors);
@@ -299,34 +299,33 @@ const ExamScreen = () => {
                 },
                 body: JSON.stringify({
                   to: token,
-                  title: `Nouveau Examen: ${formData.name}`,
-                  body: `Dr.${professorName} a ajouté un nouveau examen dans module : ${formData.module}`,
-                  
+                  title: `Nouvel Examen: ${formData.name}`,
+                  body: `Dr.${professorName} a ajouté un nouvel examen dans le module : ${formData.module}`,
                 })
               });
             } catch (error) {
-              console.error('Error sending notification:', error);
+              console.error('Erreur lors de l\'envoi de la notification:', error);
             }
           }));
         }
       }
 
-      Alert.alert('Success', `Exam ${dialogType === 'add' ? 'added' : 'updated'} successfully`);
+      Alert.alert('Succès', `Examen ${dialogType === 'add' ? 'ajouté' : 'mis à jour'} avec succès`);
       await fetchExams(token, profId);
       closeDialog();
     } catch (error) {
-      console.error('Error saving exam:', error);
-      let errorMessage = 'Failed to save exam';
+      console.error('Erreur lors de l\'enregistrement de l\'examen:', error);
+      let errorMessage = 'Échec de l\'enregistrement de l\'examen';
       if (error.response) {
         if (error.response.status === 413) {
-          errorMessage = 'File size is too large (max 50MB)';
+          errorMessage = 'La taille du fichier est trop grande (max 50 Mo)';
         } else if (error.response.status === 403) {
-          errorMessage = 'Session expired. Please login again.';
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -337,20 +336,20 @@ const ExamScreen = () => {
         `${baseUrl}/api/professeur/deleteResource/${selectedExam.id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Alert.alert('Success', 'Exam deleted successfully');
+      Alert.alert('Succès', 'Examen supprimé avec succès');
       await fetchExams(token, profId);
       closeDialog();
     } catch (error) {
-      console.error('Error deleting exam:', error);
-      let errorMessage = 'Failed to delete exam';
+      console.error('Erreur lors de la suppression de l\'examen:', error);
+      let errorMessage = 'Échec de la suppression de l\'examen';
       if (error.response) {
         if (error.response.status === 403) {
-          errorMessage = 'Session expired. Please login again.';
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -364,7 +363,7 @@ const ExamScreen = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={themeColors.primary} />
-        <Text style={{ marginTop: 16, color: themeColors.primary }}>Loading data...</Text>
+        <Text style={{ marginTop: 16, color: themeColors.primary }}>Chargement des données...</Text>
       </View>
     );
   }
@@ -384,7 +383,7 @@ const ExamScreen = () => {
           {/* Header */}
           <View style={styles.header}>
             <Searchbar
-              placeholder="Search Exams..."
+              placeholder="Rechercher des examens..."
               onChangeText={setSearchTerm}
               value={searchTerm}
               style={styles.search}
@@ -397,7 +396,7 @@ const ExamScreen = () => {
               buttonColor={themeColors.primary}
               icon="plus"
             >
-              Add
+              Ajouter
             </Button>
           </View>
 
@@ -420,13 +419,13 @@ const ExamScreen = () => {
                       }
                     >
                       <Menu.Item 
-                        title="Edit" 
+                        title="Modifier" 
                         leadingIcon="pencil" 
                         onPress={() => openDialog('edit', exam)} 
                       />
                       <Divider />
                       <Menu.Item 
-                        title="Delete" 
+                        title="Supprimer" 
                         leadingIcon="delete" 
                         onPress={() => openDialog('delete', exam)}
                         titleStyle={{ color: themeColors.error }}
@@ -448,13 +447,13 @@ const ExamScreen = () => {
                     style={styles.viewButton}
                     textColor={themeColors.accent}
                   >
-                    {exam.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
+                    {exam.dataType === 'VIDEO' ? 'Regarder la vidéo' : 'Voir le PDF'}
                   </Button>
                 </Card.Content>
               </Card>
             ))
           ) : (
-            <Text style={styles.emptyText}>No exams found</Text>
+            <Text style={styles.emptyText}>Aucun examen trouvé</Text>
           )}
         </ScrollView>
 
@@ -462,13 +461,13 @@ const ExamScreen = () => {
         <Portal>
           <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
             <Dialog.Title style={styles.dialogTitle}>
-              {dialogType === 'add' ? 'Add New Exam' : 'Edit Exam'}
+              {dialogType === 'add' ? 'Ajouter un nouvel examen' : 'Modifier l\'examen'}
             </Dialog.Title>
             <Divider style={styles.divider} />
             <Dialog.ScrollArea>
               <View style={styles.dialogContent}>
                 <TextInput
-                  label="Exam Name"
+                  label="Nom de l'examen"
                   defaultValue={formData.name || ''}
                   onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
                   style={styles.input}
@@ -488,7 +487,7 @@ const ExamScreen = () => {
                 />
                 
                 <View style={styles.typeSection}>
-                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <Text style={styles.inputLabel}>Type de ressource</Text>
                   <View style={styles.typeButtons}>
                     <Button
                       mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
@@ -508,7 +507,7 @@ const ExamScreen = () => {
                       buttonColor={formData.type === 'VIDEO' ? themeColors.accent : undefined}
                       textColor={formData.type === 'VIDEO' ? themeColors.surface : themeColors.accent}
                     >
-                      Video
+                      Vidéo
                     </Button>
                   </View>
                 </View>
@@ -522,15 +521,15 @@ const ExamScreen = () => {
                       style={styles.uploadButton}
                       textColor={themeColors.accent}
                     >
-                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                      {formData.file ? `Sélectionné: ${formData.file.name}` : 'Télécharger un PDF'}
                     </Button>
                     {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
                     {selectedExam?.lien && !formData.file && (
-                      <Text style={styles.currentFile}>Current file: {selectedExam.lien.split('/').pop()}</Text>
+                      <Text style={styles.currentFile}>Fichier actuel: {selectedExam.lien.split('/').pop()}</Text>
                     )}
                     {uploadProgress > 0 && (
                       <View style={styles.progressContainer}>
-                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <Text style={styles.progressText}>Téléchargement: {uploadProgress}%</Text>
                         <ProgressBar 
                           progress={uploadProgress / 100} 
                           color={themeColors.accent}
@@ -542,7 +541,7 @@ const ExamScreen = () => {
                 ) : (
                   <View style={styles.videoSection}>
                     <TextInput
-                      label="YouTube URL"
+                      label="URL YouTube"
                       defaultValue={formData.videoUrl || ''}
                       onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
                       style={styles.input}
@@ -553,14 +552,14 @@ const ExamScreen = () => {
                       activeOutlineColor={themeColors.accent}
                     />
                     {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
-                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                    <HelperText type="info" style={styles.infoText}>Exemple: https://www.youtube.com/watch?v=videoId</HelperText>
                   </View>
                 )}
               </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button 
                 onPress={saveExam} 
                 mode="contained"
@@ -568,23 +567,23 @@ const ExamScreen = () => {
                 disabled={uploadProgress > 0 && uploadProgress < 100}
                 buttonColor={themeColors.primary}
               >
-                {dialogType === 'add' ? 'Add Exam' : 'Save Changes'}
+                {dialogType === 'add' ? 'Ajouter l\'examen' : 'Enregistrer les modifications'}
               </Button>
             </Dialog.Actions>
           </Dialog>
           
           {/* Delete Dialog */}
           <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
-            <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
+            <Dialog.Title style={styles.dialogTitle}>Confirmer la suppression</Dialog.Title>
             <Dialog.Content>
-              <Text>Are you sure you want to delete this exam?</Text>
+              <Text>Êtes-vous sûr de vouloir supprimer cet examen ?</Text>
               <Text style={styles.examName}>{selectedExam?.nom}</Text>
-              <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
+              <Text style={styles.deleteWarning}>Cette action est irréversible.</Text>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button onPress={deleteExam} mode="contained" buttonColor={themeColors.error}>
-                Delete
+                Supprimer
               </Button>
             </Dialog.Actions>
           </Dialog>
@@ -617,7 +616,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
         onPress={() => setVisible(true)}
       >
         <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
-          {value || `Select ${label}`}
+          {value || `Sélectionner ${label}`}
         </Text>
         <IconButton icon="chevron-down" size={20} iconColor={themeColors.textLight} />
       </TouchableOpacity>
@@ -628,7 +627,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
       
       <Portal>
         <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
+          <Dialog.Title style={styles.dialogTitle}>Sélectionner {label}</Dialog.Title>
           <Dialog.ScrollArea style={styles.dialogScrollArea}>
             <ScrollView>
               {items.map((item, index) => (
@@ -651,7 +650,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
             </ScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions>
-            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Cancel</Button>
+            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Annuler</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

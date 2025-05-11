@@ -51,12 +51,12 @@ const TdScreen = () => {
         const storedProfId = await AsyncStorage.getItem('profId');
         
         if (!authData || !storedProfId) {
-          throw new Error('Authentication data not found');
+          throw new Error('Données d\'authentification non trouvées');
         }
 
         const parsedAuth = JSON.parse(authData);
         if (!parsedAuth.token) {
-          throw new Error('Token not found');
+          throw new Error('Token non trouvé');
         }
 
         setToken(parsedAuth.token);
@@ -65,8 +65,8 @@ const TdScreen = () => {
         await fetchTds(parsedAuth.token, storedProfId);
         await fetchModules(parsedAuth.token, storedProfId);
       } catch (error) {
-        console.error('Error loading data:', error);
-        Alert.alert('Error', 'Failed to load data. Please login again.');
+        console.error('Erreur lors du chargement des données:', error);
+        Alert.alert('Erreur', 'Échec du chargement des données. Veuillez vous reconnecter.');
       } finally {
         setLoading(false);
       }
@@ -89,11 +89,11 @@ const TdScreen = () => {
       );
       setTds(response.data.filter(r => r.type === "TD"));
     } catch (error) {
-      console.error('Error fetching TDs:', error);
+      console.error('Erreur lors de la récupération des TDs:', error);
       if (error.response?.status === 403) {
-        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.');
       } else {
-        Alert.alert('Error', 'Failed to fetch TDs. Please try again later.');
+        Alert.alert('Erreur', 'Échec de la récupération des TDs. Veuillez réessayer plus tard.');
       }
     }
   };
@@ -112,11 +112,11 @@ const TdScreen = () => {
       );
       setModules(response.data);
     } catch (error) {
-      console.error('Error fetching modules:', error);
+      console.error('Erreur lors de la récupération des modules:', error);
       if (error.response?.status === 403) {
-        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.');
       } else {
-        Alert.alert('Error', 'Failed to fetch modules. Please try again later.');
+        Alert.alert('Erreur', 'Échec de la récupération des modules. Veuillez réessayer plus tard.');
       }
     }
   };
@@ -128,7 +128,7 @@ const TdScreen = () => {
       await fetchTds(token, profId);
       await fetchModules(token, profId);
     } catch (error) {
-      console.error('Error refreshing:', error);
+      console.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
@@ -178,20 +178,20 @@ const TdScreen = () => {
         const file = result.assets[0];
         
         if (file.size > 50 * 1024 * 1024) {
-          Alert.alert('Error', 'File size should be less than 50MB');
+          Alert.alert('Erreur', 'La taille du fichier doit être inférieure à 50MB');
           return;
         }
         
         if (!file.mimeType || !file.mimeType.includes('pdf')) {
-          Alert.alert('Error', 'Please select a PDF file');
+          Alert.alert('Erreur', 'Veuillez sélectionner un fichier PDF');
           return;
         }
         
         setFormData(prev => ({ ...prev, file }));
       }
     } catch (error) {
-      console.error('Error picking file:', error);
-      Alert.alert('Error', 'Failed to pick file');
+      console.error('Erreur lors de la sélection du fichier:', error);
+      Alert.alert('Erreur', 'Échec de la sélection du fichier');
     }
   };
 
@@ -199,17 +199,17 @@ const TdScreen = () => {
   const validate = () => {
     const newErrors = {};
     
-    if (!formData.name.trim()) newErrors.name = 'TD name is required';
-    if (!formData.module) newErrors.module = 'Module is required';
+    if (!formData.name.trim()) newErrors.name = 'Le nom du TD est requis';
+    if (!formData.module) newErrors.module = 'Le module est requis';
     
     if (formData.type === 'VIDEO') {
       if (!formData.videoUrl.trim()) {
-        newErrors.videoUrl = 'Video URL is required';
+        newErrors.videoUrl = 'L\'URL de la vidéo est requise';
       } else if (!formData.videoUrl.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/)) {
-        newErrors.videoUrl = 'Please enter a valid YouTube URL';
+        newErrors.videoUrl = 'Veuillez entrer une URL YouTube valide';
       }
     } else if (formData.type === 'FICHIER' && !formData.file && !selectedTd?.lien) {
-      newErrors.file = 'PDF file is required';
+      newErrors.file = 'Un fichier PDF est requis';
     }
     
     setErrors(newErrors);
@@ -237,18 +237,28 @@ const TdScreen = () => {
       form.append('type', 'TD');
       form.append('dataType', formData.type);
       
-      // In the saveTd function, update the file append section:
-      if (formData.type === 'VIDEO') {
-        form.append('lien', formData.videoUrl.trim());
-      } else if (formData.file) {
+      // Fix file upload to match backend DTO expectations
+      if (formData.type === 'FICHIER' && formData.file) {
+        // Create file object that matches MultipartFile expected by Spring Boot
         const fileToUpload = {
           uri: formData.file.uri,
-          type: 'application/pdf',
+          type: formData.file.mimeType || 'application/pdf',
           name: formData.file.name || 'document.pdf'
         };
+        
+        // Use 'data' as the field name to match your AddResourceDto
         form.append('data', fileToUpload);
+        
+        console.log('File being uploaded:', {
+          name: fileToUpload.name,
+          type: fileToUpload.type,
+          size: formData.file.size
+        });
+      } else if (formData.type === 'VIDEO') {
+        form.append('lien', formData.videoUrl.trim());
       }
       
+      // Rest of your form data
       if (selectedTd?.lien) {
         form.append('lien', selectedTd.lien);
       }
@@ -261,6 +271,12 @@ const TdScreen = () => {
       
       if (dialogType === 'edit' && selectedTd) {
         form.append('id', selectedTd.id);
+      }
+
+      // Log all form data for debugging
+      console.log('Form data fields:');
+      for (let [key, value] of form._parts) {
+        console.log(`${key}: ${typeof value === 'object' ? 'File object' : value}`);
       }
 
       const url = dialogType === 'add' 
@@ -282,55 +298,51 @@ const TdScreen = () => {
         },
       });
 
-      // Send notification only for new TDs
-      if (dialogType === 'add') {
-        // Get all tokens for notification - Updated to use baseUrl
-        const tokensResponse = await axios.get(
-           `${baseUrl}/api/student/getTokens`
-        );
-        
-        const tokens = tokensResponse.data;
+      // Get all tokens for notification
+      const tokensResponse = await axios.get(
+        `${baseUrl}/api/student/getTokens`
+      );
+      
+      const tokens = tokensResponse.data;
 
-        // Send notification to each token
-        if (tokens && tokens.length > 0) {
-          await Promise.all(tokens.map(async (token) => {
-            try {
-              await fetch('https://exp.host/--/api/v2/push/send', {
-                method: 'POST',
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  to: token,
-                  title: `Nouveau TD: ${formData.name}`,
-                  body: `Dr.${professorName} a ajouté un nouveau TD dans module : ${formData.module}`,
-                
-                })
-              });
-            } catch (error) {
-              console.error('Error sending notification:', error);
-            }
-          }));
-        }
+      // Send notification to each token
+      if (tokens && tokens.length > 0) {
+        await Promise.all(tokens.map(async (token) => {
+          try {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                to: token,
+                title: `Nouveau TD: ${formData.name}`,
+                body: `Dr.${professorName} a ajouté un nouveau TD dans module : ${formData.module}`,
+              })
+            });
+          } catch (error) {
+            console.error('Erreur lors de l\'envoi de la notification:', error);
+          }
+        }));
       }
 
-      Alert.alert('Success', `TD ${dialogType === 'add' ? 'added' : 'updated'} successfully`);
+      Alert.alert('Succès', `TD ${dialogType === 'add' ? 'ajouté' : 'mis à jour'} avec succès`);
       await fetchTds(token, profId);
       closeDialog();
     } catch (error) {
-      console.error('Error saving TD:', error);
-      let errorMessage = 'Failed to save TD';
+      console.error('Erreur lors de l\'enregistrement du TD:', error);
+      let errorMessage = 'Échec de l\'enregistrement du TD';
       if (error.response) {
         if (error.response.status === 413) {
-          errorMessage = 'File size is too large (max 50MB)';
+          errorMessage = 'La taille du fichier est trop grande (max 50MB)';
         } else if (error.response.status === 403) {
-          errorMessage = 'Session expired. Please login again.';
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -341,20 +353,20 @@ const TdScreen = () => {
         `${baseUrl}/api/professeur/deleteResource/${selectedTd.id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Alert.alert('Success', 'TD deleted successfully');
+      Alert.alert('Succès', 'TD supprimé avec succès');
       await fetchTds(token, profId);
       closeDialog();
     } catch (error) {
-      console.error('Error deleting TD:', error);
-      let errorMessage = 'Failed to delete TD';
+      console.error('Erreur lors de la suppression du TD:', error);
+      let errorMessage = 'Échec de la suppression du TD';
       if (error.response) {
         if (error.response.status === 403) {
-          errorMessage = 'Session expired. Please login again.';
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else {
           errorMessage = error.response.data?.message || errorMessage;
         }
       }
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -368,7 +380,7 @@ const TdScreen = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={themeColors.primary} />
-        <Text style={{ marginTop: 16, color: themeColors.primary }}>Loading data...</Text>
+        <Text style={{ marginTop: 16, color: themeColors.primary }}>Chargement des données...</Text>
       </View>
     );
   }
@@ -388,7 +400,7 @@ const TdScreen = () => {
           {/* Header */}
           <View style={styles.header}>
             <Searchbar
-              placeholder="Search TDs..."
+              placeholder="Rechercher des TDs..."
               onChangeText={setSearchTerm}
               value={searchTerm}
               style={styles.search}
@@ -401,7 +413,7 @@ const TdScreen = () => {
               buttonColor={themeColors.primary}
               icon="plus"
             >
-              Add
+              Ajouter
             </Button>
           </View>
 
@@ -426,13 +438,13 @@ const TdScreen = () => {
                       
                     >
                       <Menu.Item 
-                        title="Edit" 
+                        title="Modifier" 
                         leadingIcon="pencil" 
                         onPress={() => openDialog('edit', td)} 
                       />
                       <Divider />
                       <Menu.Item 
-                        title="Delete" 
+                        title="Supprimer" 
                         leadingIcon="delete" 
                         onPress={() => openDialog('delete', td)}
                         titleStyle={{ color: themeColors.error }}
@@ -455,13 +467,13 @@ const TdScreen = () => {
                     style={styles.viewButton}
                     textColor={themeColors.accent}
                   >
-                    {td.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
+                    {td.dataType === 'VIDEO' ? 'Voir la vidéo' : 'Voir le PDF'}
                   </Button>
                 </Card.Content>
               </Card>
             ))
           ) : (
-            <Text style={styles.emptyText}>No TDs found</Text>
+            <Text style={styles.emptyText}>Aucun TD trouvé</Text>
           )}
         </ScrollView>
 
@@ -469,13 +481,13 @@ const TdScreen = () => {
         <Portal>
           <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
             <Dialog.Title style={styles.dialogTitle}>
-              {dialogType === 'add' ? 'Add New TD' : 'Edit TD'}
+              {dialogType === 'add' ? 'Ajouter un nouveau TD' : 'Modifier le TD'}
             </Dialog.Title>
             <Divider style={styles.divider} />
             <Dialog.ScrollArea>
               <View style={styles.dialogContent}>
                 <TextInput
-                  label="TD Name"
+                  label="Nom du TD"
                   defaultValue={formData.name || ''}
                   onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
                   style={styles.input}
@@ -495,7 +507,7 @@ const TdScreen = () => {
                 />
                 
                 <View style={styles.typeSection}>
-                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <Text style={styles.inputLabel}>Type de ressource</Text>
                   <View style={styles.typeButtons}>
                     <Button
                       mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
@@ -515,7 +527,7 @@ const TdScreen = () => {
                       buttonColor={formData.type === 'VIDEO' ? themeColors.accent : undefined}
                       textColor={formData.type === 'VIDEO' ? themeColors.surface : themeColors.accent}
                     >
-                      Video
+                      Vidéo
                     </Button>
                   </View>
                 </View>
@@ -529,15 +541,15 @@ const TdScreen = () => {
                       style={styles.uploadButton}
                       textColor={themeColors.accent}
                     >
-                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                      {formData.file ? `Sélectionné: ${formData.file.name}` : 'Téléverser PDF'}
                     </Button>
                     {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
                     {selectedTd?.lien && !formData.file && (
-                      <Text style={styles.currentFile}>you should upload file again </Text>
+                      <Text style={styles.currentFile}>Vous devez téléverser le fichier à nouveau</Text>
                     )}
                     {uploadProgress > 0 && (
                       <View style={styles.progressContainer}>
-                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <Text style={styles.progressText}>Téléversement: {uploadProgress}%</Text>
                         <ProgressBar 
                           progress={uploadProgress / 100} 
                           color={themeColors.accent}
@@ -549,7 +561,7 @@ const TdScreen = () => {
                 ) : (
                   <View style={styles.videoSection}>
                     <TextInput
-                      label="YouTube URL"
+                      label="URL YouTube"
                       defaultValue={formData.videoUrl || ''}
                       onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
                       style={styles.input}
@@ -560,38 +572,38 @@ const TdScreen = () => {
                       activeOutlineColor={themeColors.accent}
                     />
                     {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
-                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                    <HelperText type="info" style={styles.infoText}>Exemple: https://www.youtube.com/watch?v=videoId</HelperText>
                   </View>
                 )}
               </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button 
                 onPress={saveTd} 
-                mode="contained"
+                mode="text"
                 loading={uploadProgress > 0 && uploadProgress < 100}
                 disabled={uploadProgress > 0 && uploadProgress < 100}
-                buttonColor={themeColors.primary}
+                textColor={themeColors.primary}
               >
-                {dialogType === 'add' ? 'Add TD' : 'Save Changes'}
+                {dialogType === 'add' ? 'Ajouter TD' : 'Enregistrer'}
               </Button>
             </Dialog.Actions>
           </Dialog>
           
           {/* Delete Dialog */}
           <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
-            <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
+            <Dialog.Title style={styles.dialogTitle}>Confirmer la suppression</Dialog.Title>
             <Dialog.Content>
-              <Text>Are you sure you want to delete this TD?</Text>
+              <Text>Êtes-vous sûr de vouloir supprimer ce TD?</Text>
               <Text style={styles.tdName}>{selectedTd?.nom}</Text>
-              <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
+              <Text style={styles.deleteWarning}>Cette action est irréversible.</Text>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button onPress={deleteTd} mode="contained" buttonColor={themeColors.error}>
-                Delete
+                Supprimer
               </Button>
             </Dialog.Actions>
           </Dialog>
@@ -624,7 +636,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
         onPress={() => setVisible(true)}
       >
         <Text style={value ? styles.dropdownSelectedText : styles.dropdownPlaceholderText}>
-          {value || `Select ${label}`}
+          {value || `Sélectionner ${label}`}
         </Text>
         <IconButton icon="chevron-down" size={20} iconColor={themeColors.textLight} />
       </TouchableOpacity>
@@ -635,7 +647,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
       
       <Portal>
         <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>Select {label}</Dialog.Title>
+          <Dialog.Title style={styles.dialogTitle}>Sélectionner {label}</Dialog.Title>
           <Dialog.ScrollArea style={styles.dialogScrollArea}>
             <ScrollView>
               {items.map((item, index) => (
@@ -658,7 +670,7 @@ const CustomDropdown = ({ label, value, items, onSelect, error }) => {
             </ScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions>
-            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Cancel</Button>
+            <Button onPress={() => setVisible(false)} textColor={themeColors.textLight}>Annuler</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -776,12 +788,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   typeSection: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   typeButtons: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
   },
   typeButton: {
     flex: 1,
@@ -809,15 +820,10 @@ const styles = StyleSheet.create({
   divider: {
     backgroundColor: themeColors.background,
     height: 1,
-    marginVertical: 8,
   },
   dialog: {
     backgroundColor: themeColors.surface,
     borderRadius: 12,
-  },
-  dialogContent: {
-    padding: 16,
-    gap: 16,
   },
   currentFile: {
     color: themeColors.secondary,

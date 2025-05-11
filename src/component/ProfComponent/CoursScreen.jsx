@@ -230,13 +230,19 @@ const CoursScreen = () => {
       if (result.type === 'success' || (result.assets && result.assets.length > 0)) {
         const file = result.assets ? result.assets[0] : result;
         
+        // Show alert function
+        const showAlert = (title, message) => {
+          Alert.alert(title, message);
+        };
+        
+        // File picker alerts
         if (file.size > 50 * 1024 * 1024) {
-          showAlert('Error', 'File size should be less than 50MB');
+          showAlert('Erreur', 'La taille du fichier doit être inférieure à 50MB');
           return null;
         }
         
         if (!file.mimeType || !file.mimeType.includes('pdf')) {
-          showAlert('Error', 'Please select a PDF file');
+          showAlert('Erreur', 'Veuillez sélectionner un fichier PDF');
           return null;
         }
         
@@ -254,17 +260,17 @@ const CoursScreen = () => {
   const validate = () => {
     const newErrors = {};
     
-    if (!formData.name.trim()) newErrors.name = 'Course name is required';
-    if (!formData.module) newErrors.module = 'Module is required';
+    if (!formData.name.trim()) newErrors.name = 'Le nom du cours est requis';
+    if (!formData.module) newErrors.module = 'Le module est requis';
     
     if (formData.type === 'VIDEO') {
       if (!formData.videoUrl.trim()) {
-        newErrors.videoUrl = 'Video URL is required';
+        newErrors.videoUrl = 'L\'URL de la vidéo est requise';
       } else if (!formData.videoUrl.match(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/)) {
-        newErrors.videoUrl = 'Please enter a valid YouTube URL';
+        newErrors.videoUrl = 'Veuillez entrer une URL YouTube valide';
       }
     } else if (formData.type === 'FICHIER' && !formData.file && !selectedCourse?.lien) {
-      newErrors.file = 'PDF file is required';
+      newErrors.file = 'Un fichier PDF est requis';
     }
     
     setErrors(newErrors);
@@ -501,7 +507,7 @@ const CoursScreen = () => {
           {/* Header */}
           <View style={styles.header}>
             <Searchbar
-              placeholder="Search courses..."
+              placeholder="Rechercher des cours..."
               onChangeText={(text) => setSearchTerm(text)}
               value={searchTerm}
               style={styles.search}
@@ -514,7 +520,7 @@ const CoursScreen = () => {
               buttonColor={themeColors.primary}
               icon="plus"
             >
-              Add
+              Ajouter
             </Button>
           </View>
 
@@ -551,7 +557,7 @@ const CoursScreen = () => {
                             onPress={() => {
                               openDialog('edit', course);
                             }}
-                            title="Edit"
+                            title="Modifier"
                             leadingIcon="pencil"
                             titleStyle={{ color: themeColors.text }}
                           />
@@ -560,7 +566,7 @@ const CoursScreen = () => {
                             onPress={() => {
                               openDialog('delete', course);
                             }}
-                            title="Delete"
+                            title="Supprimer"
                             leadingIcon="delete"
                             titleStyle={{ color: themeColors.error }}
                           />
@@ -581,13 +587,13 @@ const CoursScreen = () => {
                         style={styles.viewButton}
                         textColor={themeColors.accent}
                       >
-                        {course.dataType === 'VIDEO' ? 'Watch Video' : 'View PDF'}
+                        {course.dataType === 'VIDEO' ? 'Regarder la vidéo' : 'Voir le PDF'}
                       </Button>
                     </Card.Content>
                   </Card>
                 ))
               ) : (
-                <Text style={styles.emptyText}>No courses found</Text>
+                <Text style={styles.emptyText}>Aucun cours trouvé</Text>
               )}
             </>
           )}
@@ -597,13 +603,13 @@ const CoursScreen = () => {
         <Portal>
           <Dialog visible={['add', 'edit'].includes(dialogType)} onDismiss={closeDialog} style={styles.dialog}>
             <Dialog.Title style={styles.dialogTitle}>
-              {dialogType === 'add' ? 'Add New Course' : 'Edit Course'}
+              {dialogType === 'add' ? 'Ajouter un nouveau cours' : 'Modifier le cours'}
             </Dialog.Title>
             <Divider style={styles.divider} />
             <Dialog.ScrollArea>
               <View style={styles.dialogContent}>
                 <TextInput
-                  label="Course Name"
+                  label="Nom du cours"
                   defaultValue={formData.name || ''}
                   onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
                   style={styles.input}
@@ -623,7 +629,7 @@ const CoursScreen = () => {
                 />
                 
                 <View style={styles.typeSection}>
-                  <Text style={styles.inputLabel}>Resource Type</Text>
+                  <Text style={styles.inputLabel}>Type de ressource</Text>
                   <View style={styles.typeButtons}>
                     <Button
                       mode={formData.type === 'FICHIER' ? 'contained' : 'outlined'}
@@ -657,15 +663,15 @@ const CoursScreen = () => {
                       style={styles.uploadButton}
                       textColor={themeColors.accent}
                     >
-                      {formData.file ? `Selected: ${formData.file.name}` : 'Upload PDF'}
+                      {formData.file ? `Sélectionné: ${formData.file.name}` : 'Télécharger PDF'}
                     </Button>
                     {errors.file && <HelperText type="error" style={styles.errorText}>{errors.file}</HelperText>}
                     {selectedCourse?.lien && !formData.file && dialogType === 'edit' && (
-                      <Text style={styles.currentFile}>You should upload file again </Text>
+                      <Text style={styles.currentFile}>Vous devez télécharger le fichier à nouveau</Text>
                     )}
                     {uploadProgress > 0 && (
                       <View style={styles.progressContainer}>
-                        <Text style={styles.progressText}>Uploading: {uploadProgress}%</Text>
+                        <Text style={styles.progressText}>Téléchargement: {uploadProgress}%</Text>
                         <ProgressBar 
                           progress={uploadProgress / 100} 
                           color={themeColors.accent}
@@ -677,7 +683,7 @@ const CoursScreen = () => {
                 ) : (
                   <View style={styles.videoSection}>
                     <TextInput
-                      label="YouTube URL"
+                      label="URL YouTube"
                       defaultValue={formData.videoUrl || ''}
                       onChangeText={text => setFormData(prev => ({ ...prev, videoUrl: text }))}
                       style={styles.input}
@@ -688,41 +694,41 @@ const CoursScreen = () => {
                       activeOutlineColor={themeColors.accent}
                     />
                     {errors.videoUrl && <HelperText type="error" style={styles.errorText}>{errors.videoUrl}</HelperText>}
-                    <HelperText type="info" style={styles.infoText}>Example: https://www.youtube.com/watch?v=videoId</HelperText>
+                    <HelperText type="info" style={styles.infoText}>Exemple: https://www.youtube.com/watch?v=videoId</HelperText>
                   </View>
                 )}
               </View>
             </Dialog.ScrollArea>
             <Divider style={styles.divider} />
             <Dialog.Actions  style={{color:"white",padding:1}}>
-              <Button onPress={closeDialog}textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog}textColor={themeColors.textLight}>Annuler</Button>
               <Button 
                 onPress={handleSaveCourse} 
                 mode="text"
                 loading={isProcessing}
                 disabled={isProcessing}
               >
-                {dialogType === 'add' ? 'Add Course' : 'Save Changes'}
+                {dialogType === 'add' ? 'Ajouter le cours' : 'Enregistrer les modifications'}
               </Button>
             </Dialog.Actions>
           </Dialog>
 
           {/* Delete Dialog */}
           <Dialog visible={dialogType === 'delete'} onDismiss={closeDialog}>
-            <Dialog.Title style={styles.dialogTitle}>Confirm Delete</Dialog.Title>
+            <Dialog.Title style={styles.dialogTitle}>Confirmer la suppression</Dialog.Title>
             <Dialog.Content>
-              <Text>Are you sure you want to delete this course?</Text>
+              <Text>Êtes-vous sûr de vouloir supprimer ce cours?</Text>
               <Text style={styles.courseName}>{selectedCourse?.nom}</Text>
-              <Text style={styles.deleteWarning}>This action cannot be undone.</Text>
+              <Text style={styles.deleteWarning}>Cette action ne peut pas être annulée.</Text>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={closeDialog} textColor={themeColors.textLight}>Cancel</Button>
+              <Button onPress={closeDialog} textColor={themeColors.textLight}>Annuler</Button>
               <Button 
                 onPress={handleDeleteCourse} 
                 mode="contained" 
                 buttonColor={themeColors.error}
               >
-                Delete
+                Supprimer
               </Button>
             </Dialog.Actions>
           </Dialog>

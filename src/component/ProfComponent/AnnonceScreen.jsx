@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
- import { jwtDecode } from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 
 const AnnouncementScreen = () => {
   // State management
@@ -52,13 +52,11 @@ const AnnouncementScreen = () => {
         setProfId(storedProfId);
       }
     } catch (error) {
-      console.error('Error loading auth data:', error);
-      // Removed Alert dialog
+      console.error('Erreur lors du chargement des données d\'authentification:', error);
     }
   };
 
   // Fetch announcements
-  // Remove Alert from fetchAnnouncements function
   const fetchAnnouncements = async () => {
     if (!token || !profId) return;
     
@@ -80,9 +78,8 @@ const AnnouncementScreen = () => {
       }
       
     } catch (error) {
-      console.error('Fetch error details:', error.response?.data || error.message);
+      console.error('Erreur lors de la récupération des annonces:', error.response?.data || error.message);
       setAnnouncements([]);
-      // Removed Alert dialog
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -97,7 +94,7 @@ const AnnouncementScreen = () => {
         await fetchAnnouncements();
       }
     } catch (error) {
-      console.error('Error refreshing data:', error);
+      console.error('Erreur lors de l\'actualisation des données:', error);
     } finally {
       setRefreshing(false);
     }
@@ -115,8 +112,6 @@ const AnnouncementScreen = () => {
     }
   }, [token, profId]);
 
- 
-
   // Pagination
   const handlePageChange = (newPage) => {
     setPage(newPage);
@@ -130,6 +125,7 @@ const AnnouncementScreen = () => {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" />
+        <Text style={styles.loaderText}>Chargement...</Text>
       </View>
     );
   }
@@ -179,7 +175,7 @@ const AnnouncementScreen = () => {
           ) : (
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="bullhorn" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No announcements found</Text>
+              <Text style={styles.emptyText}>Aucune annonce trouvée</Text>
               <AddAnnouncementDialog 
                 token={token}
                 profId={profId}
@@ -188,7 +184,7 @@ const AnnouncementScreen = () => {
                 titleRef={titleRef}
                 descriptionRef={descriptionRef}
                 triggerStyle={styles.emptyButton}
-                triggerText="Create your first announcement"
+                triggerText="Créer votre première annonce"
               />
             </View>
           )}
@@ -200,14 +196,14 @@ const AnnouncementScreen = () => {
                 disabled={page === 1}
                 onPress={() => handlePageChange(page - 1)}
               >
-                Previous
+                Précédent
               </Button>
               <Text style={styles.pageText}>Page {page}</Text>
               <Button 
                 disabled={endIndex >= announcements.length}
                 onPress={() => handlePageChange(page + 1)}
               >
-                Next
+                Suivant
               </Button>
             </View>
           )}
@@ -226,7 +222,7 @@ const AddAnnouncementDialog = ({
   titleRef,
   descriptionRef,
   triggerStyle,
-  triggerText = "Add Announcement"
+  triggerText = "Ajouter une annonce"
 }) => {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -252,23 +248,19 @@ const AddAnnouncementDialog = ({
         setFileName(uriSegments[uriSegments.length - 1]);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      console.error('Erreur lors de la sélection de l\'image:', error);
+      Alert.alert('Erreur', 'Échec de la sélection de l\'image');
     }
   };
 
-  // In the AddAnnouncementDialog component
   const validateForm = () => {
     if (!title || !description) {
-      Alert.alert('Error', 'Title and description are required');
+      Alert.alert('Erreur', 'Le titre et la description sont requis');
       return false;
     }
     return true;
   };
 
- 
-  
-  // In the handleSave function of AddAnnouncementDialog:
   const handleSave = async () => {
     if (!validateForm() || isUploading || !token || !profId) return;
   
@@ -318,7 +310,7 @@ const AddAnnouncementDialog = ({
       );
   
       // Get all tokens for notification
-      const tokensResponse = await axios.get(`http://192.168.3.41:8080/api/student/getTokens`);
+      const tokensResponse = await axios.get(`${baseUrl}/api/student/getTokens`);
       const tokens = tokensResponse.data;
   
       // Send notification to each token
@@ -333,22 +325,22 @@ const AddAnnouncementDialog = ({
               },
               body: JSON.stringify({
                 to: token,
-                title: `Annonce: ${title}`,  // Fixed string template syntax
+                title: `Annonce: ${title}`,
                 body: `Dr.${professorName} a publié une nouvelle annonce`,
               })
             });
           } catch (error) {
-            console.error('Error sending notification:', error);
+            console.error('Erreur lors de l\'envoi de la notification:', error);
           }
         }));
       }
   
-      Alert.alert('Success', 'Announcement added successfully');
+      Alert.alert('Succès', 'Annonce ajoutée avec succès');
       onSuccess();
       handleClose();
     } catch (error) {
-      console.error('Save error:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to save announcement');
+      console.error('Erreur lors de l\'enregistrement:', error);
+      Alert.alert('Erreur', error.response?.data?.message || 'Échec de l\'enregistrement de l\'annonce');
     } finally {
       setIsUploading(false);
     }
@@ -380,12 +372,12 @@ const AddAnnouncementDialog = ({
       <Portal>
         <Dialog visible={open} onDismiss={handleClose} style={styles.dialog}>
           <Dialog.Title style={styles.dialogTitle}>
-            Add New Announcement
+            Ajouter une nouvelle annonce
           </Dialog.Title>
           <Dialog.Content>
             <TextInput
               ref={titleRef}
-              label="Title"
+              label="Titre"
               onChangeText={setTitle}
               style={styles.input}
               mode="outlined"
@@ -414,7 +406,7 @@ const AddAnnouncementDialog = ({
               style={styles.uploadButton}
               textColor="#4080be"
             >
-              {imageUri ? 'Change Image' : 'Select Image'}
+              {imageUri ? 'Changer l\'image' : 'Sélectionner une image'}
             </Button>
             
             {fileName && (
@@ -435,13 +427,13 @@ const AddAnnouncementDialog = ({
               <View style={styles.progressContainer}>
                 <ProgressBar progress={uploadProgress / 100} />
                 <Text style={styles.progressText}>
-                  Uploading: {uploadProgress}%
+                  Téléchargement: {uploadProgress}%
                 </Text>
               </View>
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={handleClose}>Cancel</Button>
+            <Button onPress={handleClose}>Annuler</Button>
             <Button 
               onPress={handleSave} 
               mode="contained"
@@ -449,7 +441,7 @@ const AddAnnouncementDialog = ({
               disabled={isUploading}
               buttonColor="#01162e"
             >
-              Save
+              Enregistrer
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -495,14 +487,14 @@ const EditAnnouncementDialog = ({
         setFileName(uriSegments[uriSegments.length - 1]);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      console.error('Erreur lors de la sélection de l\'image:', error);
+      Alert.alert('Erreur', 'Échec de la sélection de l\'image');
     }
   };
 
   const validateForm = () => {
     if (!title || !description) {
-      Alert.alert('Error', 'Title and description are required');
+      Alert.alert('Erreur', 'Le titre et la description sont requis');
       return false;
     }
     return true;
@@ -545,12 +537,12 @@ const EditAnnouncementDialog = ({
         }
       );
 
-      Alert.alert('Success', 'Announcement updated successfully');
+      Alert.alert('Succès', 'Annonce mise à jour avec succès');
       onSuccess();
       handleClose();
     } catch (error) {
-      console.error('Update error:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update announcement');
+      console.error('Erreur lors de la mise à jour:', error);
+      Alert.alert('Erreur', error.response?.data?.message || 'Échec de la mise à jour de l\'annonce');
     } finally {
       setIsUploading(false);
     }
@@ -584,12 +576,12 @@ const EditAnnouncementDialog = ({
       <Portal>
         <Dialog visible={open} onDismiss={handleClose} style={styles.dialog}>
           <Dialog.Title style={styles.dialogTitle}>
-            Edit Announcement
+            Modifier l'annonce
           </Dialog.Title>
           <Dialog.Content>
             <TextInput
               ref={titleRef}
-              label="Title"
+              label="Titre"
               defaultValue={title}
               onChangeText={setTitle}
               style={styles.input}
@@ -618,7 +610,7 @@ const EditAnnouncementDialog = ({
               style={styles.uploadButton}
               textColor="#4080be"
             >
-              {imageUri ? 'Change Image' : 'Select Image'}
+              {imageUri ? 'Changer l\'image' : 'Sélectionner une image'}
             </Button>
             
             {fileName && (
@@ -639,13 +631,13 @@ const EditAnnouncementDialog = ({
               <View style={styles.progressContainer}>
                 <ProgressBar progress={uploadProgress / 100} />
                 <Text style={styles.progressText}>
-                  Uploading: {uploadProgress}%
+                  Téléchargement: {uploadProgress}%
                 </Text>
               </View>
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={handleClose} textColor="#666">Cancel</Button>
+            <Button onPress={handleClose} textColor="#666">Annuler</Button>
             <Button 
               onPress={handleSave} 
               mode="contained"
@@ -653,7 +645,7 @@ const EditAnnouncementDialog = ({
               disabled={isUploading}
               buttonColor="#01162e"
             >
-              Save
+              Enregistrer
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -672,21 +664,20 @@ const DeleteAnnouncementDialog = ({
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // In the DeleteAnnouncementDialog component
   const handleDelete = async () => {
     if (isDeleting || !announcement?.id) return;
   
     // Use native Alert for confirmation
     Alert.alert(
-      "Confirm Delete",
-      `Are you sure you want to delete "${announcement?.titre}"?`,
+      "Confirmer la suppression",
+      `Êtes-vous sûr de vouloir supprimer "${announcement?.titre}" ?`,
       [
         {
-          text: "Cancel",
+          text: "Annuler",
           style: "cancel"
         },
         {
-          text: "Delete",
+          text: "Supprimer",
           style: "destructive",
           onPress: async () => {
             setIsDeleting(true);
@@ -701,7 +692,7 @@ const DeleteAnnouncementDialog = ({
               setOpen(false);
               
               // Show success message with native Alert
-              Alert.alert('Success', 'Announcement deleted successfully');
+              Alert.alert('Succès', 'Annonce supprimée avec succès');
               
               // Force a refresh of the announcements list
               setTimeout(() => {
@@ -709,8 +700,8 @@ const DeleteAnnouncementDialog = ({
               }, 300);
               
             } catch (error) {
-              console.error('Delete error:', error);
-              Alert.alert('Error', 'Failed to delete announcement');
+              console.error('Erreur lors de la suppression:', error);
+              Alert.alert('Erreur', 'Échec de la suppression de l\'annonce');
             } finally {
               setIsDeleting(false);
             }
@@ -773,7 +764,7 @@ const AnnouncementCard = ({
         <View style={styles.dateContainer}>
           <MaterialCommunityIcons name="clock-outline" size={16} color="#4080be" />
           <Text variant="bodySmall" style={styles.dateText}>
-            Posted on: {announcement.date}
+            Publié le: {announcement.date}
           </Text>
         </View>
 
@@ -813,6 +804,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  loaderText: {
+    marginTop: 8,
+    color: '#01162e',
   },
   headerContainer: {
     marginBottom: 16,
